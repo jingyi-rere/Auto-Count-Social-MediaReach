@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git --version)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git fetch *)",
+      "Bash(ssh-keygen -R github.com)",
+      "Bash(ssh-keyscan -H github.com)",
+      "Bash(ssh -T git@github.com)",
+      "Bash(mkdir -p ~/.ssh)",
+      "Bash(ls ~/.ssh/)",
+      "Bash(npm list *)",
+      "Bash(python3 -c \"from docx import Document; print\\('python-docx available'\\)\")",
+      "Bash(pip3 install *)",
+      "Bash(python3 generate_brd.py)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git config *)",
+      "Read(//Applications/**)",
+      "Bash(GIT_EXEC_PATH=\"/Applications/GitHub Desktop.app/Contents/Resources/app/git/libexec/git-core\" git -c \"credential.helper=git-credential-desktop\" push -u origin main)"
+    ]
+  }
+}
