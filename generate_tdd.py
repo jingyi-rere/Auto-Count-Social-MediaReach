@@ -23,7 +23,6 @@ GREY   = (89, 89, 89)
 GREEN  = (0, 112, 0)
 ORANGE = (197, 90, 17)
 RED    = (192, 0, 0)
-TEAL   = (0, 112, 112)
 
 def add_heading(doc, text, level):
     p = doc.add_paragraph()
@@ -42,17 +41,10 @@ def add_body(doc, text, bold=False, italic=False, color=None):
         run.font.color.rgb = RGBColor(*color)
     return p
 
-def add_bullet(doc, text, bold_prefix=None):
+def add_bullet(doc, text):
     p = doc.add_paragraph(style='List Bullet')
-    if bold_prefix:
-        r1 = p.add_run(bold_prefix)
-        r1.bold = True
-        r1.font.size = Pt(11)
-        r2 = p.add_run(text)
-        r2.font.size = Pt(11)
-    else:
-        run = p.add_run(text)
-        run.font.size = Pt(11)
+    run = p.add_run(text)
+    run.font.size = Pt(11)
     return p
 
 def shade_cell(cell, hex_color):
@@ -126,16 +118,13 @@ def add_code(doc, text):
     run.font.size = Pt(9)
     run.font.color.rgb = RGBColor(0, 0, 139)
     p.paragraph_format.left_indent = Inches(0.3)
-    shade_cell_para(p, 'F5F5F5')
-    return p
-
-def shade_cell_para(para, hex_color):
-    pPr = para._p.get_or_add_pPr()
+    pPr = p._p.get_or_add_pPr()
     shd = OxmlElement('w:shd')
     shd.set(qn('w:val'), 'clear')
     shd.set(qn('w:color'), 'auto')
-    shd.set(qn('w:fill'), hex_color)
+    shd.set(qn('w:fill'), 'F5F5F5')
     pPr.append(shd)
+    return p
 
 # ── COVER PAGE ────────────────────────────────────────────────────────────────
 doc.add_paragraph()
@@ -172,11 +161,11 @@ doc.add_paragraph()
 meta = doc.add_table(rows=5, cols=2)
 meta.alignment = WD_TABLE_ALIGNMENT.CENTER
 for i, (lbl, val) in enumerate([
-    ('Document Version:', '1.0'),
+    ('Document Version:', '2.0'),
     ('Date:', datetime.date.today().strftime('%d %B %Y')),
-    ('Status:', 'Draft'),
+    ('Status:', 'Final'),
     ('Prepared By:', 'jingyi-rere'),
-    ('Based On:', 'BRD v3.0 — Auto Count Social Media Reach'),
+    ('Based On:', 'BRD v4.0 — Auto Count Social Media Reach'),
 ]):
     set_col_width(meta.rows[i].cells[0], 2.2)
     set_col_width(meta.rows[i].cells[1], 4.3)
@@ -196,7 +185,8 @@ add_heading(doc, 'Document Version History', 2)
 make_table(doc,
     ['Version', 'Date', 'Author', 'Changes'],
     [
-        ('1.0', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Initial Technical Design Document based on BRD v3.0'),
+        ('1.0', '09 May 2026', 'jingyi-rere', 'Initial TDD — platform APIs approach'),
+        ('2.0', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Redesigned: Playwright + Claude Vision (no APIs), hard column allowlist, run.py trigger, write A/D/E/G only'),
     ],
     [0.7, 1.5, 1.5, 3.8]
 )
@@ -206,67 +196,87 @@ doc.add_page_break()
 # ── 1. SYSTEM OVERVIEW ────────────────────────────────────────────────────────
 add_heading(doc, '1. System Overview', 1)
 add_body(doc, (
-    'The Auto Count Social Media Reach system is a Python-based automation tool that accepts video URLs '
-    'from 7 social media platforms, extracts key video metrics using platform APIs and web scraping, '
-    'and writes the structured data directly into the user\'s Lark Sheet via the Lark API. An AI module '
-    'then analyses the collected data and generates performance insights and content recommendations.'
+    'The Auto Count Social Media Reach system is a Python-based automation tool. '
+    'The user pastes video URLs into Column F of their Lark Sheet, then runs python run.py. '
+    'The system reads those URLs, opens each video in a real Chrome browser using Playwright, '
+    'takes a screenshot, and sends it to Claude Haiku Vision to extract the posted date, '
+    'caption, and view count. The data is then written to columns A, D, E, G of the Lark Sheet. '
+    'A hard allowlist in lark_writer.py enforces that no other columns can ever be written to.'
 ))
 
 doc.add_paragraph()
-add_heading(doc, '1.1 High-Level System Flow', 2)
-add_body(doc, 'The system works in 4 simple steps:', italic=True)
+add_heading(doc, '1.1 Key Design Decisions', 2)
 make_table(doc,
-    ['Step', 'What Happens', 'Who / What Does It'],
+    ['Decision', 'Choice', 'Reason'],
     [
-        ('1', 'User pastes one or more video URLs', 'User (via simple web interface or input form)'),
-        ('2', 'System identifies the platform and extracts: posted date, caption (no hashtags), view count', 'Platform Connector modules + AI caption cleaner'),
-        ('3', 'System writes data into the correct Lark Sheet columns (A, D, E, F, G) — never touching B, C, H', 'Lark API Writer module'),
-        ('4', 'AI analyses all collected data and outputs performance summary + recommendations', 'AI Analysis module (Claude API)'),
+        ('Data extraction method', 'Playwright + Claude Vision (NO platform APIs)', 'Works on all 7 platforms including RedNote which has no API. More reliable and future-proof.'),
+        ('Column safety', 'Hard allowlist raises exception for B/C/F/H', 'Prevents any accidental data corruption in user-managed columns.'),
+        ('Column F', 'Read only — never write', 'User owns this column. System reads URL from here but never modifies it.'),
+        ('Row management', 'Write into existing rows only', 'User controls row structure. System fills in the blanks only.'),
+        ('Trigger', 'python run.py — no UI', 'Simple, fast, no dependencies on web frameworks.'),
+        ('AI model', 'claude-haiku-4-5-20251001 for vision', 'Fast and cost-effective for screenshot analysis.'),
+        ('Browser profile', 'Persistent Chrome at ~/.cache/auto-count/chrome-profile', 'Retains login sessions across runs — no re-login needed.'),
     ],
-    [0.5, 3.5, 3.5]
+    [1.8, 2.2, 3.5]
 )
 
 # ── 2. SYSTEM ARCHITECTURE ────────────────────────────────────────────────────
 add_heading(doc, '2. System Architecture', 1)
-add_heading(doc, '2.1 Architecture Overview', 2)
-add_body(doc, 'The system is built using a modular architecture with 5 core components:')
 
+add_heading(doc, '2.1 Component Overview', 2)
 make_table(doc,
-    ['Component', 'What It Does'],
+    ['File', 'Component', 'What It Does'],
     [
-        ('1. Input Handler', 'Receives video URLs from the user, validates format, identifies platform'),
-        ('2. Platform Connectors (x7)', 'One connector per platform — extracts posted date, caption, view count'),
-        ('3. Data Processor', 'Cleans caption (removes hashtags), formats date, sets default Content Type'),
-        ('4. Lark Sheet Writer', 'Connects to Lark API and writes data into correct columns'),
-        ('5. AI Analysis Engine', 'Sends data to Claude API, receives performance summary + recommendations'),
+        ('run.py', 'Main Entry Point', 'Orchestrates all components. User runs this file.'),
+        ('lark_reader.py', 'Lark Sheet Reader', 'Reads Lark Sheet. Returns rows where Column F has URL and A/D/E/G are empty.'),
+        ('lark_writer.py', 'Lark Sheet Writer', 'Writes to columns A/D/E/G ONLY. Hard allowlist raises exception for any other column.'),
+        ('browser_reader.py', 'Browser Controller', 'Opens video URLs in persistent Chrome using Playwright. Takes screenshots.'),
+        ('vision_extract.py', 'AI Vision Extractor', 'Sends screenshot to Claude Haiku Vision. Returns JSON: posted_date, caption, view_count.'),
+        ('processor.py', 'Data Processor', 'Cleans caption (Unicode hashtag strip), formats date, sets Content Type default.'),
+        ('reporter.py', 'Run Reporter', 'Prints run summary: rows processed, successes, failures, errors.'),
     ],
-    [2.5, 5.0]
+    [1.8, 1.8, 4.0]
 )
 
-add_heading(doc, '2.2 Architecture Diagram (Text)', 2)
-add_body(doc, 'System flow from input to output:', italic=True)
+add_heading(doc, '2.2 System Flow Diagram', 2)
 
-diagram_lines = [
-    '  [User] --pastes video URLs--> [Input Handler]',
-    '                                      |',
-    '              +------------------------+------------------------+',
-    '              |            |           |          |            |',
-    '    [Instagram]  [TikTok]  [YouTube]  [Facebook] [X] [RedNote] [Threads]',
-    '    Connector   Connector  Connector  Connector  ...   ...      ...',
-    '              |            |           |          |            |',
-    '              +------------------------+------------------------+',
-    '                                      |',
-    '                            [Data Processor]',
-    '                   (clean captions, format date, set defaults)',
-    '                                      |',
-    '                    +-----------------+------------------+',
-    '                    |                                    |',
-    '          [Lark Sheet Writer]                 [AI Analysis Engine]',
-    '     (writes to columns A,D,E,F,G)      (performance summary + tips)',
-    '                    |                                    |',
-    '            [Lark Sheet Updated]              [Recommendations Output]',
-]
-for line in diagram_lines:
+for line in [
+    '  USER pastes URLs into Lark Column F',
+    '         |',
+    '  USER runs: python run.py',
+    '         |',
+    '  [lark_reader.py]',
+    '  Reads Lark Sheet -- finds rows where F has URL + A/D/E/G empty',
+    '         |',
+    '         | for each URL',
+    '         v',
+    '  [browser_reader.py]',
+    '  Opens URL in persistent Chrome (Playwright)',
+    '  Takes screenshot of video page',
+    '         |',
+    '         v',
+    '  [vision_extract.py]',
+    '  Sends screenshot to Claude Haiku Vision',
+    '  Returns JSON: { posted_date, caption, view_count }',
+    '         |',
+    '         v',
+    '  [processor.py]',
+    '  clean_caption() -- strips ALL Unicode hashtags',
+    '  format_date()   -- standardises date format',
+    '  set_content_type() -- returns "Content Casual"',
+    '         |',
+    '         v',
+    '  [lark_writer.py]  <-- HARD ALLOWLIST: A, D, E, G only',
+    '  Column A <-- posted_date',
+    '  Column D <-- cleaned caption',
+    '  Column E <-- "Content Casual"',
+    '  Column G <-- view_count',
+    '  Column B/C/F/H --> RAISES EXCEPTION immediately',
+    '         |',
+    '         v',
+    '  [reporter.py]',
+    '  Prints run summary to terminal',
+]:
     add_code(doc, line)
 
 doc.add_paragraph()
@@ -274,338 +284,380 @@ doc.add_paragraph()
 # ── 3. TECHNOLOGY STACK ───────────────────────────────────────────────────────
 add_heading(doc, '3. Technology Stack', 1)
 make_table(doc,
-    ['Layer', 'Technology', 'Purpose', 'Why This Choice'],
+    ['Library / Tool', 'Version', 'Purpose'],
     [
-        ('Programming Language', 'Python 3.11+', 'Core system language', 'Wide library support, easy to maintain'),
-        ('Web Scraping', 'Playwright / Selenium', 'Extract data from platforms without official API', 'Handles JavaScript-rendered pages on all 7 platforms'),
-        ('Instagram API', 'Instagram Graph API', 'Official metric extraction for Instagram', 'Official and reliable for business accounts'),
-        ('TikTok API', 'TikTok Research API', 'Official video data extraction', 'Official API for approved developers'),
-        ('YouTube API', 'YouTube Data API v3', 'Official video stats extraction', 'Free, reliable, well-documented'),
-        ('Facebook API', 'Meta Graph API', 'Official video metric extraction', 'Same API family as Instagram'),
-        ('X API', 'X (Twitter) API v2', 'Official tweet/video metric extraction', 'Official and structured data'),
-        ('RedNote / Threads', 'Web Scraping (Playwright)', 'No public API available', 'Only viable option for these platforms'),
-        ('AI Engine', 'Claude API (Anthropic)', 'Generate performance summary and recommendations', 'Best-in-class language understanding'),
-        ('Lark Integration', 'Lark Open API', 'Read and write to Lark Sheet', 'Official API, stable and secure'),
-        ('Caption Cleaning', 'Python regex (re module)', 'Remove hashtags from captions', 'Fast, reliable, no extra dependencies'),
-        ('User Interface', 'Streamlit (web app)', 'Simple UI for the user to paste links', 'Easy to build, runs in browser, no installation needed'),
-        ('Environment Config', 'Python dotenv (.env file)', 'Store API keys securely', 'Industry standard for credential management'),
+        ('Python', '3.11+', 'Core programming language'),
+        ('playwright', 'latest (pinned)', 'Browser automation — opens video pages, takes screenshots'),
+        ('anthropic', 'latest (pinned)', 'Claude Haiku Vision API for screenshot analysis + AI recommendations'),
+        ('lark-oapi', 'latest (pinned)', 'Official Lark Open API SDK for reading/writing Lark Sheet'),
+        ('python-dotenv', 'latest (pinned)', 'Load API keys and secrets from .env file securely'),
+        ('pytest', 'latest (pinned)', 'Run automated tests — especially column allowlist tests'),
+        ('re (built-in)', 'built-in', 'Unicode-aware regex for hashtag removal'),
+        ('pathlib (built-in)', 'built-in', 'File path management for Chrome profile directory'),
+        ('json (built-in)', 'built-in', 'Parse Claude Vision response JSON'),
+        ('datetime (built-in)', 'built-in', 'Date formatting and standardisation'),
     ],
-    [1.8, 2.0, 2.0, 1.7]
+    [2.2, 1.0, 4.3]
 )
 
-# ── 4. COMPONENT DESIGN ───────────────────────────────────────────────────────
-add_heading(doc, '4. Component Design', 1)
+# ── 4. DETAILED COMPONENT DESIGN ─────────────────────────────────────────────
+add_heading(doc, '4. Detailed Component Design', 1)
 
-add_heading(doc, '4.1 Input Handler', 2)
-add_body(doc, 'Responsible for receiving and validating user input.')
+add_heading(doc, '4.1 lark_reader.py', 2)
+add_body(doc, 'Reads the Lark Sheet and returns rows that need processing.')
+make_table(doc,
+    ['Function', 'Input', 'Output', 'Logic'],
+    [
+        ('get_rows_to_process()', 'None', 'List of {row_index, url}', 'Find rows where Column F has URL AND at least one of A/D/E/G is empty'),
+        ('connect_lark()', 'None', 'Lark client object', 'Authenticate using App ID + Secret from .env'),
+        ('read_sheet()', 'Lark client', 'Raw sheet data', 'Read all rows from configured sheet tab'),
+    ],
+    [2.2, 1.5, 1.8, 2.0]
+)
+
+add_heading(doc, '4.2 lark_writer.py — Hard Column Allowlist', 2)
+add_body(doc, 'This is the most critical safety component. The hard allowlist MUST be enforced:', bold=True, color=RED)
+doc.add_paragraph()
+
+add_code(doc, '  ALLOWED_COLUMNS = {"A", "D", "E", "G"}  # Hard allowlist')
+add_code(doc, '')
+add_code(doc, '  def write_cell(row_index, column, value):')
+add_code(doc, '      if column not in ALLOWED_COLUMNS:')
+add_code(doc, '          raise ValueError(')
+add_code(doc, '              f"FORBIDDEN: Cannot write to column {column}. "')
+add_code(doc, '              f"Only {ALLOWED_COLUMNS} are allowed."')
+add_code(doc, '          )')
+add_code(doc, '      # proceed to write to Lark Sheet...')
+doc.add_paragraph()
+
 make_table(doc,
     ['Function', 'Description'],
     [
-        ('receive_urls()', 'Accepts a list of video URLs from the user interface'),
-        ('validate_url(url)', 'Checks that the URL is a valid video link (not a profile or homepage)'),
-        ('identify_platform(url)', 'Detects which platform the URL belongs to based on domain name'),
-        ('route_to_connector(url, platform)', 'Sends each URL to the correct Platform Connector'),
+        ('write_cell(row_index, column, value)', 'Writes one cell. Raises ValueError immediately if column not in allowlist.'),
+        ('write_row(row_index, data_dict)', 'Writes A/D/E/G for one row. Calls write_cell for each — allowlist enforced per call.'),
+        ('verify_write(row_index)', 'Reads back the written row to confirm data was saved correctly.'),
+    ],
+    [3.0, 4.5]
+)
+
+add_heading(doc, '4.3 browser_reader.py', 2)
+add_body(doc, 'Opens each video URL in a real Chrome browser and takes a screenshot.')
+make_table(doc,
+    ['Function', 'Description'],
+    [
+        ('get_browser()', 'Launches Playwright with persistent Chrome profile at ~/.cache/auto-count/chrome-profile'),
+        ('open_url(browser, url)', 'Opens the video URL in a new tab. Waits for page to fully load.'),
+        ('take_screenshot(page)', 'Takes a full-page screenshot. Returns image bytes.'),
+        ('close_browser(browser)', 'Closes browser cleanly after all URLs are processed.'),
     ],
     [2.5, 5.0]
 )
 
-add_body(doc, 'Platform identification logic (domain matching):', italic=True, color=GREY)
-for line in [
-    'instagram.com  -->  Instagram Connector',
-    'tiktok.com     -->  TikTok Connector',
-    'youtube.com / youtu.be  -->  YouTube Connector',
-    'facebook.com   -->  Facebook Connector',
-    'x.com / twitter.com  -->  X Connector',
-    'xiaohongshu.com / rednote.com  -->  RedNote Connector',
-    'threads.net    -->  Threads Connector',
-]:
-    add_code(doc, '  ' + line)
+add_body(doc, 'Persistent Chrome profile setup:', italic=True, color=GREY)
+add_code(doc, '  PROFILE_PATH = Path.home() / ".cache" / "auto-count" / "chrome-profile"')
+add_code(doc, '  PROFILE_PATH.mkdir(parents=True, exist_ok=True)')
+add_code(doc, '')
+add_code(doc, '  browser = playwright.chromium.launch_persistent_context(')
+add_code(doc, '      user_data_dir=str(PROFILE_PATH),')
+add_code(doc, '      headless=False,  # visible browser so user can log in if needed')
+add_code(doc, '  )')
 doc.add_paragraph()
 
-add_heading(doc, '4.2 Platform Connectors', 2)
-add_body(doc, 'Each platform has its own dedicated connector module. All connectors return the same standard data structure:')
-add_code(doc, '  {')
-add_code(doc, '    "platform":    "Instagram",')
-add_code(doc, '    "url":         "https://www.instagram.com/reel/...",')
-add_code(doc, '    "posted_date": "2026-05-01",')
-add_code(doc, '    "caption":     "Raw caption text including #hashtags",')
-add_code(doc, '    "view_count":  125000')
-add_code(doc, '  }')
-doc.add_paragraph()
-
+add_heading(doc, '4.4 vision_extract.py', 2)
+add_body(doc, 'Sends screenshot to Claude Haiku Vision and returns structured data.')
 make_table(doc,
-    ['Platform', 'Access Method', 'Data Extracted', 'Notes'],
+    ['Function', 'Input', 'Output'],
     [
-        ('Instagram', 'Instagram Graph API', 'posted date, caption, Reels view count', 'Requires Business/Creator account connected to Meta app'),
-        ('TikTok', 'TikTok Research API', 'posted date, description, video views', 'Requires TikTok developer account approval'),
-        ('YouTube', 'YouTube Data API v3', 'published date, title, view count', 'Free quota: 10,000 units/day — sufficient for this use case'),
-        ('Facebook', 'Meta Graph API', 'posted date, caption, video views', 'Same app as Instagram — shares access token'),
-        ('X (Twitter)', 'X API v2', 'posted date, tweet text, video views', 'Free tier has rate limits; monitor usage'),
-        ('RedNote', 'Playwright web scraping', 'posted date, caption, view count', 'No public API — scraping approach; may need manual login session'),
-        ('Threads', 'Playwright web scraping', 'posted date, caption, view count', 'Limited API; scraping used as fallback'),
+        ('extract_from_screenshot(image_bytes, url)', 'Screenshot bytes + URL', 'JSON: { posted_date, caption, view_count }'),
+        ('build_prompt(url)', 'Video URL', 'Prompt string telling Claude what to extract'),
+        ('parse_response(response)', 'Claude API response', 'Validated dict with posted_date, caption, view_count'),
+        ('validate_extraction(data)', 'Extracted dict', 'Raises error if required fields are missing or invalid'),
     ],
-    [1.2, 1.8, 2.2, 2.3]
+    [3.0, 2.0, 2.5]
 )
 
-add_heading(doc, '4.3 Data Processor', 2)
-add_body(doc, 'Cleans and formats raw data from connectors before writing to Lark Sheet.')
+add_body(doc, 'Claude Vision prompt template:', italic=True, color=GREY)
+add_code(doc, '  You are analysing a screenshot of a social media video post.')
+add_code(doc, '  Extract exactly these 3 fields and return as JSON only:')
+add_code(doc, '  {')
+add_code(doc, '    "posted_date": "DD/MM/YYYY format of when the video was posted",')
+add_code(doc, '    "caption": "Full video caption text including hashtags",')
+add_code(doc, '    "view_count": 123456  (integer, the number of views shown)')
+add_code(doc, '  }')
+add_code(doc, '  If a field cannot be found, use null.')
+add_code(doc, '  Return JSON only. No explanation.')
+doc.add_paragraph()
+
+add_heading(doc, '4.5 processor.py', 2)
+add_body(doc, 'Cleans and formats extracted data before writing to Lark Sheet.')
 make_table(doc,
     ['Function', 'Input', 'Output', 'Rule'],
     [
-        ('clean_caption(text)', 'Raw caption with hashtags', 'Caption without hashtags', 'Remove all words starting with #'),
-        ('format_date(raw_date)', 'Platform date string', 'Formatted date (DD/MM/YYYY)', 'Standardise across all platforms'),
-        ('set_content_type()', 'Nothing', '"Content Casual"', 'Always returns this default value'),
-        ('handle_empty_caption(text)', 'Empty or None caption', '"No caption"', 'Fallback if caption is missing'),
+        ('clean_caption(text)', 'Raw caption with hashtags', 'Caption without any hashtags', 'Unicode-aware: strips #word in any language'),
+        ('format_date(raw_date)', 'Date string from Claude', 'DD/MM/YYYY string', 'Standardise to consistent format'),
+        ('set_content_type()', 'Nothing', '"Content Casual"', 'Always returns this exact string'),
+        ('handle_empty(value, fallback)', 'Any value', 'Value or fallback', 'Returns fallback if value is None or empty'),
     ],
     [2.0, 1.8, 1.8, 1.9]
 )
 
-add_body(doc, 'Hashtag removal logic:', italic=True, color=GREY)
+add_body(doc, 'Unicode-aware hashtag removal:', italic=True, color=GREY)
 add_code(doc, '  import re')
+add_code(doc, '')
 add_code(doc, '  def clean_caption(text):')
 add_code(doc, '      if not text or text.strip() == "":')
 add_code(doc, '          return "No caption"')
-add_code(doc, '      cleaned = re.sub(r\'#\w+\', \'\', text)  # remove all #hashtags')
-add_code(doc, '      return cleaned.strip()              # remove extra spaces')
+add_code(doc, '      # \\w matches Unicode word chars (Chinese, Arabic, emoji, etc.)')
+add_code(doc, '      cleaned = re.sub(r\'#\\w+\', \'\', text, flags=re.UNICODE)')
+add_code(doc, '      return " ".join(cleaned.split())  # collapse extra whitespace')
 doc.add_paragraph()
 
-add_heading(doc, '4.4 Lark Sheet Writer', 2)
-add_body(doc, 'Connects to the Lark Open API and writes data into the correct columns of the existing Lark Sheet.')
-make_table(doc,
-    ['Function', 'Description'],
-    [
-        ('connect_lark()', 'Authenticates with Lark API using stored credentials'),
-        ('find_next_empty_row()', 'Scans the sheet to find the next available empty row'),
-        ('write_row(row_data)', 'Writes data to columns A, D, E, F, G only — never touches B, C, H'),
-        ('verify_write()', 'Reads back the written row to confirm data was saved correctly'),
-    ],
-    [2.5, 5.0]
-)
-
-add_body(doc, 'Column write mapping:', italic=True, color=GREY)
-add_code(doc, '  Column A  <--  posted_date       (from Platform Connector)')
-add_code(doc, '  Column B  <--  [SKIP - never write]')
-add_code(doc, '  Column C  <--  [SKIP - never write]')
-add_code(doc, '  Column D  <--  clean_caption()   (hashtags removed)')
-add_code(doc, '  Column E  <--  "Content Casual"  (hardcoded default)')
-add_code(doc, '  Column F  <--  url               (original video URL)')
-add_code(doc, '  Column G  <--  view_count        (from Platform Connector)')
-add_code(doc, '  Column H  <--  [SKIP - never write]')
+add_heading(doc, '4.6 run.py', 2)
+add_body(doc, 'Main entry point. Orchestrates all components in order.')
+add_code(doc, '  1. Load .env (API keys, Lark credentials)')
+add_code(doc, '  2. lark_reader.get_rows_to_process() --> list of {row_index, url}')
+add_code(doc, '  3. browser_reader.get_browser()')
+add_code(doc, '  4. For each row:')
+add_code(doc, '       a. browser_reader.open_url(url)')
+add_code(doc, '       b. browser_reader.take_screenshot()')
+add_code(doc, '       c. vision_extract.extract_from_screenshot()')
+add_code(doc, '       d. processor.clean_caption() / format_date() / set_content_type()')
+add_code(doc, '       e. lark_writer.write_row(row_index, {A, D, E, G})')
+add_code(doc, '       f. Record success or failure')
+add_code(doc, '  5. browser_reader.close_browser()')
+add_code(doc, '  6. reporter.print_summary(results)')
 doc.add_paragraph()
 
-add_heading(doc, '4.5 AI Analysis Engine', 2)
-add_body(doc, 'Uses the Claude API to analyse collected video metrics and generate recommendations.')
-make_table(doc,
-    ['Function', 'Description'],
-    [
-        ('prepare_analysis_data()', 'Formats all collected metrics into a structured prompt for Claude'),
-        ('call_claude_api(prompt)', 'Sends data to Claude API and receives analysis response'),
-        ('parse_recommendations(response)', 'Extracts top-performing videos, insights, and next-cycle recommendations'),
-        ('output_summary()', 'Displays the analysis to the user in the interface'),
-    ],
-    [2.5, 5.0]
-)
-
-add_body(doc, 'What the AI analysis covers:', italic=True, color=GREY)
-for item in [
-    'Top 3 best-performing videos (by view count)',
-    'Lowest performing videos and possible reasons',
-    'Best performing platform this cycle',
-    'Recommended content topics for next cycle',
-    'Recommended posting patterns (based on posted dates vs performance)',
-    'At least 3 specific, actionable content tips',
-]:
-    add_bullet(doc, item)
+add_heading(doc, '4.7 reporter.py', 2)
+add_body(doc, 'Prints a clear run summary to the terminal after all URLs are processed.')
+add_code(doc, '  ================================')
+add_code(doc, '  AUTO COUNT SOCIAL MEDIA REACH')
+add_code(doc, '  Run Summary — 11 May 2026 10:30')
+add_code(doc, '  ================================')
+add_code(doc, '  Total rows processed : 10')
+add_code(doc, '  Successful           : 9')
+add_code(doc, '  Failed               : 1')
+add_code(doc, '  --------------------------------')
+add_code(doc, '  FAILED:')
+add_code(doc, '  Row 5 | https://rednote.com/... | Error: login required')
+add_code(doc, '  ================================')
+doc.add_paragraph()
 
 # ── 5. DATA FLOW ──────────────────────────────────────────────────────────────
 add_heading(doc, '5. Data Flow', 1)
-add_heading(doc, '5.1 Step-by-Step Data Flow', 2)
+
 make_table(doc,
-    ['Step', 'Action', 'Data In', 'Data Out'],
+    ['Step', 'From', 'To', 'Data'],
     [
-        ('1', 'User submits video URLs', 'Raw URLs (list)', 'Validated URLs with platform labels'),
-        ('2', 'Platform Connector runs', 'Video URL', 'Raw: posted_date, caption, view_count'),
-        ('3', 'Data Processor cleans data', 'Raw extracted data', 'Clean: formatted date, caption without hashtags, "Content Casual"'),
-        ('4', 'Lark Writer maps columns', 'Clean data object', 'Column mapping: A=date, D=caption, E=type, F=url, G=views'),
-        ('5', 'Lark API writes to sheet', 'Column mapping', 'New row added to Lark Sheet'),
-        ('6', 'AI Engine analyses data', 'All collected metrics', 'Performance summary + recommendations text'),
-        ('7', 'Output shown to user', 'AI response', 'Summary displayed on screen'),
+        ('1', 'User', 'Lark Sheet Column F', 'Video URL (user pastes manually)'),
+        ('2', 'lark_reader', 'run.py', 'List of {row_index, url} where A/D/E/G are empty'),
+        ('3', 'run.py', 'browser_reader', 'URL string'),
+        ('4', 'browser_reader', 'Playwright Chrome', 'Open URL command'),
+        ('5', 'Playwright Chrome', 'vision_extract', 'Screenshot image bytes'),
+        ('6', 'vision_extract', 'Claude Haiku Vision API', 'Screenshot + extraction prompt'),
+        ('7', 'Claude Haiku Vision API', 'vision_extract', 'JSON: { posted_date, caption, view_count }'),
+        ('8', 'vision_extract', 'processor', 'Raw extracted data'),
+        ('9', 'processor', 'lark_writer', 'Clean data: { A: date, D: caption, E: "Content Casual", G: views }'),
+        ('10', 'lark_writer', 'Lark Sheet', 'Writes to columns A, D, E, G in existing row'),
+        ('11', 'run.py', 'reporter', 'List of results (success/fail per row)'),
+        ('12', 'reporter', 'Terminal', 'Printed run summary'),
     ],
     [0.5, 2.0, 2.0, 3.0]
 )
 
-add_heading(doc, '5.2 Error Handling Flow', 2)
-make_table(doc,
-    ['Error Scenario', 'System Response', 'User Impact'],
-    [
-        ('Invalid or broken URL', 'Skip this URL, log error, continue to next', 'User sees error message for that specific link only'),
-        ('Platform API rate limit hit', 'Wait and retry up to 3 times, then skip', 'Small delay; user notified if retry fails'),
-        ('Caption is empty / missing', 'Write "No caption" in Column D', 'No disruption — handled gracefully'),
-        ('Lark API connection fails', 'Retry once; if still fails, show error and stop', 'User notified to check Lark credentials'),
-        ('RedNote scraping blocked', 'Notify user this link could not be processed', 'User can enter RedNote data manually'),
-        ('Platform returns no view count', 'Write 0 in Column G and flag in error log', 'Data still saved; user can update manually'),
-    ],
-    [2.2, 2.5, 2.8]
-)
-
-# ── 6. LARK SHEET INTEGRATION ─────────────────────────────────────────────────
-add_heading(doc, '6. Lark Sheet Integration', 1)
-
-add_heading(doc, '6.1 Authentication', 2)
-add_body(doc, 'The system connects to Lark using the Lark Open Platform API:')
-for item in [
-    'Create a Lark App on the Lark Open Platform (open.larksuite.com)',
-    'Enable Sheets API permissions for the app',
-    'Store App ID and App Secret securely in a .env file (never in the code)',
-    'Use OAuth 2.0 token flow to get access token before each session',
-]:
-    add_bullet(doc, item)
-
-add_heading(doc, '6.2 Sheet Access Setup', 2)
-make_table(doc,
-    ['Setting', 'Value'],
-    [
-        ('Lark Sheet ID', 'Obtained from the sheet URL — stored in .env file'),
-        ('Sheet Name / Tab', 'The specific tab where video data is stored'),
-        ('Write Columns', 'A, D, E, F, G only'),
-        ('Protected Columns', 'B, C, H — system never reads or writes these'),
-        ('Row Detection', 'System scans column F (Link) to find the next empty row'),
-    ],
-    [2.5, 5.0]
-)
-
-add_heading(doc, '6.3 Write Operation Safety Rules', 2)
-for item in [
-    'Before writing, system checks that target columns are B/C/H — if yes, ABORT and log error',
-    'System always appends to a NEW row — never overwrites existing rows',
-    'After writing, system reads back the row to verify data was saved correctly',
-    'If verification fails, system retries once before alerting the user',
-]:
-    add_bullet(doc, item)
-
-# ── 7. AI ANALYSIS DESIGN ─────────────────────────────────────────────────────
-add_heading(doc, '7. AI Analysis Design', 1)
-
-add_heading(doc, '7.1 Claude API Integration', 2)
-add_body(doc, 'The system uses Anthropic\'s Claude API to generate performance insights.')
-make_table(doc,
-    ['Setting', 'Value'],
-    [
-        ('Model', 'claude-3-5-sonnet (latest)'),
-        ('Trigger', 'After all video data has been written to Lark Sheet'),
-        ('Input', 'Structured JSON of all collected metrics for the current session'),
-        ('Output', 'Plain English summary + 3 or more actionable recommendations'),
-        ('Language', 'English (can be extended to other languages later)'),
-    ],
-    [2.5, 5.0]
-)
-
-add_heading(doc, '7.2 Sample Prompt Structure', 2)
-add_body(doc, 'The following prompt template is sent to Claude:', italic=True, color=GREY)
-add_code(doc, '  You are a social media performance analyst.')
-add_code(doc, '  Analyse the following video metrics and provide:')
-add_code(doc, '  1. Top 3 best performing videos and why')
-add_code(doc, '  2. Lowest performing video and possible reason')
-add_code(doc, '  3. Best performing platform this cycle')
-add_code(doc, '  4. At least 3 specific content recommendations for next cycle')
-add_code(doc, '  Keep your response simple and easy to understand.')
-add_code(doc, '')
-add_code(doc, '  Video Data:')
-add_code(doc, '  [{ platform, title, views, posted_date, url }, ...]')
+# ── 6. COLUMN ALLOWLIST ENFORCEMENT ──────────────────────────────────────────
+add_heading(doc, '6. Column Allowlist Enforcement', 1)
+add_body(doc, 'This is the most critical safety mechanism in the system.', bold=True)
 doc.add_paragraph()
 
-# ── 8. SECURITY DESIGN ────────────────────────────────────────────────────────
-add_heading(doc, '8. Security Design', 1)
+make_table(doc,
+    ['Column', 'Allowed to Write?', 'What Happens if Write Attempted'],
+    [
+        ('A — Date', ('YES', False, GREEN), 'Write proceeds normally'),
+        ('B — Week', ('NO', True, RED), 'ValueError raised immediately — write aborted'),
+        ('C — PIC', ('NO', True, RED), 'ValueError raised immediately — write aborted'),
+        ('D — Title', ('YES', False, GREEN), 'Write proceeds normally'),
+        ('E — Content Type', ('YES', False, GREEN), 'Write proceeds normally — always "Content Casual"'),
+        ('F — Link', ('NO', True, RED), 'ValueError raised immediately — user URL protected'),
+        ('G — Reach', ('YES', False, GREEN), 'Write proceeds normally'),
+        ('H — Final Reach', ('NO', True, RED), 'ValueError raised immediately — write aborted'),
+    ],
+    [1.5, 1.8, 4.2]
+)
+
+add_heading(doc, '6.1 pytest Tests for Allowlist', 2)
+add_body(doc, 'These tests MUST pass (green) before development continues:', italic=True, color=GREY)
+add_code(doc, '  def test_write_to_B_raises():')
+add_code(doc, '      with pytest.raises(ValueError):')
+add_code(doc, '          lark_writer.write_cell(1, "B", "value")')
+add_code(doc, '')
+add_code(doc, '  def test_write_to_C_raises():')
+add_code(doc, '      with pytest.raises(ValueError):')
+add_code(doc, '          lark_writer.write_cell(1, "C", "value")')
+add_code(doc, '')
+add_code(doc, '  def test_write_to_F_raises():')
+add_code(doc, '      with pytest.raises(ValueError):')
+add_code(doc, '          lark_writer.write_cell(1, "F", "value")')
+add_code(doc, '')
+add_code(doc, '  def test_write_to_H_raises():')
+add_code(doc, '      with pytest.raises(ValueError):')
+add_code(doc, '          lark_writer.write_cell(1, "H", "value")')
+add_code(doc, '')
+add_code(doc, '  def test_write_to_A_succeeds():')
+add_code(doc, '      # Should NOT raise')
+add_code(doc, '      lark_writer.write_cell(1, "A", "01/05/2026")')
+doc.add_paragraph()
+
+# ── 7. LARK SHEET INTEGRATION ─────────────────────────────────────────────────
+add_heading(doc, '7. Lark Sheet Integration', 1)
+
+add_heading(doc, '7.1 Authentication', 2)
+make_table(doc,
+    ['Setting', 'Description'],
+    [
+        ('LARK_APP_ID', 'From Lark Open Platform — stored in .env'),
+        ('LARK_APP_SECRET', 'From Lark Open Platform — stored in .env'),
+        ('LARK_SHEET_TOKEN', 'From the Lark Sheet URL — stored in .env'),
+        ('LARK_SHEET_TAB', 'The specific tab name where video data lives — stored in .env'),
+    ],
+    [2.5, 5.0]
+)
+
+add_heading(doc, '7.2 Read Logic (lark_reader)', 2)
+for item in [
+    'Read all rows from the configured sheet tab.',
+    'For each row, check if Column F has a non-empty URL.',
+    'If Column F has URL AND at least one of A/D/E/G is empty, add to processing list.',
+    'Return list of {row_index, url} pairs.',
+]:
+    add_bullet(doc, item)
+
+add_heading(doc, '7.3 Write Logic (lark_writer)', 2)
+for item in [
+    'Check column against ALLOWED_COLUMNS allowlist — raise ValueError if not allowed.',
+    'Write to the specific row_index — never a new row.',
+    'Write columns A, D, E, G in a single batch API call for efficiency.',
+    'Read back the row after writing to verify data was saved correctly.',
+]:
+    add_bullet(doc, item)
+
+# ── 8. CLAUDE VISION INTEGRATION ─────────────────────────────────────────────
+add_heading(doc, '8. Claude Vision Integration', 1)
+
+make_table(doc,
+    ['Setting', 'Value'],
+    [
+        ('Model', 'claude-haiku-4-5-20251001'),
+        ('API Key', 'ANTHROPIC_API_KEY from .env — never logged'),
+        ('Input', 'Base64-encoded screenshot image + extraction prompt'),
+        ('Output', 'JSON string: { posted_date, caption, view_count }'),
+        ('Fallback', 'If extraction fails, log error and skip row — do not write partial data'),
+    ],
+    [2.5, 5.0]
+)
+
+# ── 9. ERROR HANDLING ─────────────────────────────────────────────────────────
+add_heading(doc, '9. Error Handling', 1)
+make_table(doc,
+    ['Error', 'Where It Occurs', 'System Response'],
+    [
+        ('Write to forbidden column', 'lark_writer.py', 'Raise ValueError immediately. Log error. Skip this row. Continue.'),
+        ('Platform blocks browser', 'browser_reader.py', 'Log error. Skip this URL. Continue with next.'),
+        ('Claude Vision returns null fields', 'vision_extract.py', 'Log warning. Use "No caption" / 0 fallbacks. Continue.'),
+        ('Lark API auth failure', 'lark_reader/writer', 'Retry token refresh once. If still fails, stop and alert user.'),
+        ('URL not recognised as supported platform', 'run.py', 'Log warning. Skip this URL. Continue.'),
+        ('Screenshot is blank or loading failed', 'browser_reader.py', 'Retry once after 3 seconds. If still blank, skip row.'),
+    ],
+    [2.2, 2.0, 3.3]
+)
+
+# ── 10. SECURITY ──────────────────────────────────────────────────────────────
+add_heading(doc, '10. Security Design', 1)
 make_table(doc,
     ['Security Concern', 'How It Is Handled'],
     [
-        ('API Keys & Credentials', 'Stored in .env file — never hardcoded in source code — .env added to .gitignore'),
-        ('Lark Access Token', 'Generated fresh each session via OAuth; expires after 2 hours'),
-        ('GitHub Repository', 'All sensitive files excluded via .gitignore (no API keys ever pushed)'),
-        ('User Data', 'No user personal data is stored — only video metrics and URLs'),
-        ('Platform Login Sessions', 'For scraping (RedNote/Threads), login session cookies stored locally and encrypted'),
+        ('API keys', 'Stored in .env only. Never hardcoded. Never logged. Never printed.'),
+        ('.env file', 'Added to .gitignore — never pushed to GitHub.'),
+        ('.env.template', 'A safe template with placeholder values pushed to GitHub for reference.'),
+        ('Lark credentials', 'App ID and Secret in .env. Token refreshed per session.'),
+        ('Chrome profile', 'Stored locally at ~/.cache/auto-count/chrome-profile. Never shared.'),
+        ('Column protection', 'Hard allowlist in code raises exception — cannot be bypassed at runtime.'),
     ],
     [2.5, 5.0]
 )
 
-# ── 9. PROJECT STRUCTURE ──────────────────────────────────────────────────────
-add_heading(doc, '9. Project File Structure', 1)
-add_body(doc, 'How the code will be organised in the GitHub repository:')
+# ── 11. PROJECT FILE STRUCTURE ────────────────────────────────────────────────
+add_heading(doc, '11. Project File Structure', 1)
 for line in [
     'Auto-Count-Social-MediaReach/',
-    '|-- app.py                    # Main entry point (Streamlit UI)',
-    '|-- connectors/',
-    '|   |-- instagram.py          # Instagram connector',
-    '|   |-- tiktok.py             # TikTok connector',
-    '|   |-- youtube.py            # YouTube connector',
-    '|   |-- facebook.py           # Facebook connector',
-    '|   |-- twitter_x.py         # X (Twitter) connector',
-    '|   |-- rednote.py            # RedNote connector',
-    '|   |-- threads.py            # Threads connector',
-    '|-- processor.py              # Caption cleaner + data formatter',
-    '|-- lark_writer.py            # Lark Sheet API integration',
-    '|-- ai_analysis.py            # Claude API integration',
-    '|-- .env                      # API keys (NOT pushed to GitHub)',
-    '|-- .gitignore                # Excludes .env and sensitive files',
-    '|-- requirements.txt          # Python dependencies',
+    '|-- run.py                    # Main entry point: python run.py',
+    '|-- lark_reader.py            # Read Lark Sheet, find rows to process',
+    '|-- lark_writer.py            # Write to Lark Sheet (hard allowlist A/D/E/G)',
+    '|-- browser_reader.py         # Playwright Chrome automation + screenshots',
+    '|-- vision_extract.py         # Claude Haiku Vision: screenshot -> JSON',
+    '|-- processor.py              # clean_caption, format_date, set_content_type',
+    '|-- reporter.py               # Print run summary to terminal',
+    '|-- tests/',
+    '|   |-- test_lark_writer.py   # pytest: B/C/F/H writes raise ValueError',
+    '|   |-- test_processor.py     # pytest: hashtag removal tests',
+    '|-- .env                      # API keys (NEVER pushed to GitHub)',
+    '|-- .env.template             # Safe template with placeholder values',
+    '|-- .gitignore                # Excludes .env, chrome-profile, __pycache__',
+    '|-- requirements.txt          # Pinned Python dependencies',
     '|-- BRD_Auto_Count_Social_Media_Reach.docx',
     '|-- TDD_Auto_Count_Social_Media_Reach.docx',
 ]:
     add_code(doc, '  ' + line)
 doc.add_paragraph()
 
-# ── 10. IMPLEMENTATION PLAN ───────────────────────────────────────────────────
-add_heading(doc, '10. Implementation Plan', 1)
+# ── 12. BUILD ORDER ───────────────────────────────────────────────────────────
+add_heading(doc, '12. Build Order', 1)
 make_table(doc,
-    ['Day', 'Phase', 'Tasks'],
+    ['Phase', 'What to Build', 'Stop Condition'],
     [
-        ('Day 1', 'Setup + Core Connectors', 'Set up project structure, install dependencies, build YouTube + Instagram + TikTok connectors, test data extraction'),
-        ('Day 2', 'Lark Integration', 'Build Lark Sheet Writer, map columns A/D/E/F/G, test writing to sheet, add column protection logic'),
-        ('Day 3', 'Remaining Platforms', 'Build Facebook + X connectors, build RedNote + Threads scrapers, test all 7 connectors'),
-        ('Day 4', 'AI Analysis + UI', 'Integrate Claude API for analysis, build Streamlit user interface, end-to-end testing'),
-        ('Day 5', 'Polish + Launch', 'Error handling, batch input, performance testing, final review, push to GitHub'),
+        ('1', 'Project scaffold: requirements.txt (pinned), .gitignore, .env.template, virtualenv', 'Virtual environment activated successfully'),
+        ('2', 'lark_writer.py with hard allowlist + pytest tests for B/C/F/H', 'ALL pytest tests GREEN before proceeding'),
+        ('3', 'lark_reader.py — find rows where F has URL and A/D/E/G are empty', 'Returns correct rows from test sheet'),
+        ('4', 'processor.py — clean_caption, format_date, set_content_type', 'Unit tests pass for hashtag removal'),
+        ('5', 'browser_reader.py — Playwright persistent Chrome profile', 'Browser opens URL and returns screenshot'),
+        ('6', 'vision_extract.py — Claude Vision screenshot to JSON', 'Returns valid JSON for a YouTube video'),
+        ('7', 'run.py + reporter.py — wire everything + run summary', 'Full run completes without errors'),
+        ('8', 'End-to-end test on 3 real YouTube URLs', 'Lark Sheet correctly filled for all 3 rows'),
     ],
-    [0.7, 2.0, 4.8]
+    [0.5, 4.5, 2.5]
 )
 
-# ── 11. DEPENDENCIES ──────────────────────────────────────────────────────────
-add_heading(doc, '11. Dependencies & Libraries', 1)
+# ── 13. TESTING PLAN ──────────────────────────────────────────────────────────
+add_heading(doc, '13. Testing Plan', 1)
 make_table(doc,
-    ['Library', 'Version', 'Purpose'],
+    ['Test', 'Type', 'What Is Tested', 'Pass Criteria'],
     [
-        ('streamlit', 'latest', 'User interface (web app)'),
-        ('anthropic', 'latest', 'Claude API for AI analysis'),
-        ('playwright', 'latest', 'Web scraping for RedNote and Threads'),
-        ('google-api-python-client', 'latest', 'YouTube Data API v3'),
-        ('requests', 'latest', 'HTTP calls to platform APIs'),
-        ('python-dotenv', 'latest', 'Load API keys from .env file'),
-        ('lark-oapi', 'latest', 'Official Lark Open API SDK'),
-        ('re (built-in)', 'built-in', 'Regex for hashtag removal'),
-        ('datetime (built-in)', 'built-in', 'Date formatting'),
+        ('test_write_B_raises', 'pytest unit', 'lark_writer rejects Column B write', 'ValueError raised'),
+        ('test_write_C_raises', 'pytest unit', 'lark_writer rejects Column C write', 'ValueError raised'),
+        ('test_write_F_raises', 'pytest unit', 'lark_writer rejects Column F write', 'ValueError raised'),
+        ('test_write_H_raises', 'pytest unit', 'lark_writer rejects Column H write', 'ValueError raised'),
+        ('test_write_A_ok', 'pytest unit', 'lark_writer allows Column A write', 'No exception raised'),
+        ('test_clean_caption_basic', 'pytest unit', 'Hashtag removal — basic English', 'Zero # chars in output'),
+        ('test_clean_caption_unicode', 'pytest unit', 'Hashtag removal — Chinese/Arabic tags', 'Zero # chars in output'),
+        ('test_clean_caption_empty', 'pytest unit', 'Empty caption returns "No caption"', 'Returns "No caption"'),
+        ('End-to-end YouTube x3', 'Integration', 'Full run on 3 real YouTube URLs', 'Lark Sheet A/D/E/G filled correctly'),
     ],
-    [2.5, 1.0, 4.0]
+    [2.0, 1.2, 2.5, 1.8]
 )
 
-# ── 12. TESTING PLAN ──────────────────────────────────────────────────────────
-add_heading(doc, '12. Testing Plan', 1)
-make_table(doc,
-    ['Test Type', 'What Is Tested', 'Pass Criteria'],
-    [
-        ('Unit Test', 'Caption cleaning (hashtag removal)', 'Zero hashtags remain in output'),
-        ('Unit Test', 'Platform URL identification', 'Correct connector called for each of 7 platforms'),
-        ('Unit Test', 'Column mapping', 'Data lands in correct Lark columns A, D, E, F, G'),
-        ('Unit Test', 'Column protection', 'System never writes to columns B, C, or H'),
-        ('Integration Test', 'End-to-end: URL to Lark Sheet', 'Full flow completes and Lark Sheet is updated correctly'),
-        ('Accuracy Test', 'View count vs platform figure', '99% match for 20 sample videos'),
-        ('Error Test', 'Invalid URL submitted', 'System skips gracefully and continues'),
-        ('Error Test', 'Lark API disconnected', 'User receives clear error message'),
-    ],
-    [1.5, 2.8, 3.2]
-)
+# ── 14. DEPENDENCIES ──────────────────────────────────────────────────────────
+add_heading(doc, '14. requirements.txt (Pinned)', 1)
+add_body(doc, 'All versions must be pinned in requirements.txt:')
+add_code(doc, '  playwright==1.44.0')
+add_code(doc, '  anthropic==0.28.0')
+add_code(doc, '  lark-oapi==1.3.5')
+add_code(doc, '  python-dotenv==1.0.1')
+add_code(doc, '  pytest==8.2.0')
+doc.add_paragraph()
 
-# ── 13. SIGN-OFF ──────────────────────────────────────────────────────────────
-add_heading(doc, '13. Sign-Off & Approval', 1)
-add_body(doc, 'By signing below, the approver confirms that this Technical Design Document accurately represents the proposed technical approach for building the Auto Count Social Media Reach system.')
+# ── 15. SIGN-OFF ──────────────────────────────────────────────────────────────
+add_heading(doc, '15. Sign-Off & Approval', 1)
+add_body(doc, 'By signing below, the approver confirms that this Technical Design Document accurately represents the proposed technical approach.')
 doc.add_paragraph()
 make_table(doc,
     ['Role', 'Name', 'Signature', 'Date'],
@@ -620,7 +672,7 @@ make_table(doc,
 doc.add_paragraph()
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-run = p.add_run('— End of Document — Version 1.0 —')
+run = p.add_run('— End of Document — Version 2.0 —')
 run.italic = True
 run.font.size = Pt(9)
 run.font.color.rgb = RGBColor(*GREY)
