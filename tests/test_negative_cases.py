@@ -209,26 +209,47 @@ def mock_lark_ok(monkeypatch):
 
 
 class TestNegativeWriteRow:
+    """
+    Plain English: When date or view count is missing/invalid, the system
+    should still write the other fields — in ONE API call, with the
+    missing fields simply omitted from the payload.
+    """
 
-    def test_null_date_skips_date_write(self, mock_lark_ok):
+    def test_null_date_omits_date_field(self, mock_lark_ok):
+        """No date → Date field not in the payload, but still ONE call."""
         write_row("rec1", None, "Caption", 1000)
-        assert mock_lark_ok.call_count == 3  # D, E, G — no A
+        assert mock_lark_ok.call_count == 1
+        written = mock_lark_ok.call_args[0][0].request_body.fields
+        assert "Date" not in written
 
-    def test_unknown_date_skips_date_write(self, mock_lark_ok):
+    def test_unknown_date_omits_date_field(self, mock_lark_ok):
         write_row("rec1", "Unknown", "Caption", 1000)
-        assert mock_lark_ok.call_count == 3
+        assert mock_lark_ok.call_count == 1
+        written = mock_lark_ok.call_args[0][0].request_body.fields
+        assert "Date" not in written
 
-    def test_relative_date_skips_date_write(self, mock_lark_ok):
+    def test_relative_date_omits_date_field(self, mock_lark_ok):
         write_row("rec1", "3 days ago", "Caption", 1000)
-        assert mock_lark_ok.call_count == 3
+        assert mock_lark_ok.call_count == 1
+        written = mock_lark_ok.call_args[0][0].request_body.fields
+        assert "Date" not in written
 
-    def test_null_views_skips_views_write(self, mock_lark_ok):
+    def test_null_views_omits_reach_field(self, mock_lark_ok):
+        """No view count → Reach field not in the payload, but still ONE call."""
         write_row("rec1", "2024-03-15", "Caption", None)
-        assert mock_lark_ok.call_count == 3  # A, D, E — no G
+        assert mock_lark_ok.call_count == 1
+        written = mock_lark_ok.call_args[0][0].request_body.fields
+        assert "Reach" not in written
 
-    def test_both_null_writes_only_two_cells(self, mock_lark_ok):
+    def test_both_null_omits_date_and_reach(self, mock_lark_ok):
+        """Both missing → two fields (Title + Content Type) written in ONE call."""
         write_row("rec1", None, "Caption", None)
-        assert mock_lark_ok.call_count == 2  # D, E only
+        assert mock_lark_ok.call_count == 1
+        written = mock_lark_ok.call_args[0][0].request_body.fields
+        assert "Date" not in written
+        assert "Reach" not in written
+        assert "Title" in written
+        assert "Content Type" in written
 
 
 # ══════════════════════════════════════════════════════════════

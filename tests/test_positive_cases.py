@@ -230,33 +230,29 @@ class TestPositiveWriteCell:
 
 
 class TestPositiveWriteRow:
+    """
+    Plain English: write_row must write all 4 fields in a single Lark API
+    call — one atomic operation so there's no risk of partial data.
+    """
 
-    def test_full_row_writes_four_cells(self, mock_lark_success):
+    def test_full_row_makes_single_api_call(self, mock_lark_success):
+        """All 4 fields sent in ONE call — not 4 separate calls."""
         write_row("rec1", "2024-03-15", "Test caption", 50000)
-        assert mock_lark_success.call_count == 4
+        assert mock_lark_success.call_count == 1
 
     def test_content_casual_always_written(self, mock_lark_success):
         write_row("rec1", "2024-03-15", "Caption", 1000)
-        calls = mock_lark_success.call_args_list
-        written = {}
-        for call in calls:
-            written.update(call[0][0].request_body.fields)
+        written = mock_lark_success.call_args[0][0].request_body.fields
         assert written.get("Content Type") == "Content Casual"
 
     def test_view_count_written_as_int(self, mock_lark_success):
         write_row("rec1", "2024-01-01", "Caption", 99999)
-        calls = mock_lark_success.call_args_list
-        written = {}
-        for call in calls:
-            written.update(call[0][0].request_body.fields)
+        written = mock_lark_success.call_args[0][0].request_body.fields
         assert isinstance(written.get("Reach"), int)
 
     def test_high_view_count_instagram(self, mock_lark_success):
         write_row("rec1", None, "Viral reel", 1_200_000)
-        calls = mock_lark_success.call_args_list
-        written = {}
-        for call in calls:
-            written.update(call[0][0].request_body.fields)
+        written = mock_lark_success.call_args[0][0].request_body.fields
         assert written.get("Reach") == 1_200_000
 
 

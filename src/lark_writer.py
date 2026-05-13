@@ -16,6 +16,7 @@ from lark_oapi.api.bitable.v1 import (
 )
 from src._env    import *  # noqa: loads .env from project root
 from src.logger  import get_logger
+from src.utils   import with_retry
 
 log = get_logger("lark_writer")
 
@@ -114,18 +115,64 @@ def write_row(
     caption: str,
     view_count,
 ) -> None:
-    """Write allowed columns for one row. Skips Date if it can't be parsed."""
+    """
+    Write all allowed columns for one row in a SINGLE Lark API call.
+
+    Why one call?  If we made 3-4 separate calls and the process crashed
+    mid-way, the row would be left half-filled.  One atomic call means
+    either everything is written or nothing is — no partial data.
+
+    Retries up to 3 times with exponential back-off (2s → 4s → 8s) for
+    transient network or Lark server errors.
+    """
+    # Build the field dict — only include fields with real values
+    fields: dict = {}
+
     # Column A — DateTime field (needs Unix ms timestamp)
     ts = _to_lark_timestamp(posted_date)
     if ts is not None:
-        write_cell(record_id, "A", ts)
+        fields[FIELD_DATE] = ts
 
     # Column D — Caption text
-    write_cell(record_id, "D", caption)
+    fields[FIELD_CAPTION] = caption
 
-    # Column E — Content type (hardcoded)
-    write_cell(record_id, "E", "Content Casual")
+    # Column E — Content type (hardcoded for all rows)
+    fields[FIELD_CONTENT_TYPE] = "Content Casual"
 
     # Column G — View count (number)
     if view_count is not None:
-        write_cell(record_id, "G", int(view_count))
+        fields[FIELD_VIEWS] = int(view_count)
+
+    log.debug("Writing %d field(s) to record %s: %s",
+              len(fields), record_id, list(fields.keys()))
+
+    def _do_write():
+        record = AppTableRecord.builder().fields(fields).build()
+        request = (
+            UpdateAppTableRecordRequest.builder()
+            .app_token(os.getenv("LARK_APP_TOKEN"))
+            .table_id(os.getenv("LARK_TABLE_ID"))
+            .record_id(record_id)
+            .request_body(record)
+            .build()
+        )
+        response = _get_client().bitable.v1.app_table_record.update(request)
+        if not response.success():
+            log.error(
+                "Lark API error for record %s — code=%s msg=%s",
+                record_id, response.code, response.msg,
+            )
+            raise RuntimeError(
+                f"Lark write error [{response.code}]: {response.msg}"
+            )
+        log.debug("✓ Wrote %d field(s) to record %s", len(fields), record_id)
+
+    # Retry up to 3 times for transient failures (network blip, 5xx, etc.)
+    with_retry(
+        _do_write,
+        max_attempts=3,
+        initial_delay=2.0,
+        backoff=2.0,
+        exceptions=(RuntimeError, Exception),
+        label=f"Lark write_row({record_id})",
+    )()

@@ -6,9 +6,9 @@ so login sessions are inherited automatically.
 
 Returns: { posted_date, caption, view_count } per URL.
 """
-import re
 import yt_dlp
 from src.logger import get_logger
+from src.utils  import clean_caption as _clean_caption  # shared, single source of truth
 
 log = get_logger("metadata_reader")
 
@@ -22,15 +22,6 @@ YDL_OPTS = {
         "instagram": ["include_dash_manifests=0"],
     },
 }
-
-
-def _clean_caption(text: str) -> str:
-    """Remove hashtags (Unicode-aware) and collapse whitespace."""
-    if not text or not text.strip():
-        return "No caption"
-    cleaned = re.sub(r"#\w+", "", text, flags=re.UNICODE)
-    result = " ".join(cleaned.split())
-    return result if result else "No caption"
 
 
 def _format_date(raw_date: str) -> str:

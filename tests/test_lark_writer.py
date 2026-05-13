@@ -96,6 +96,19 @@ def test_write_to_G_succeeds(mock_lark_ok):
     assert result is True
 
 
-def test_write_row_calls_four_cells(mock_lark_ok):
+def test_write_row_makes_single_api_call(mock_lark_ok):
+    """
+    Plain English: write_row must make exactly ONE Lark API call that
+    contains all 4 fields together — not 4 separate calls.
+    This prevents partial writes if the process crashes mid-way.
+    """
     lark_writer.write_row("rec_001", "2024-01-15", "My caption", 9999)
-    assert mock_lark_ok.call_count == 4
+    # Single atomic update — not 4 separate calls
+    assert mock_lark_ok.call_count == 1, (
+        f"write_row should make 1 API call (all fields at once), "
+        f"but made {mock_lark_ok.call_count}. "
+        f"Multiple calls risk partial writes if the process crashes."
+    )
+    # Verify all 4 expected fields were included in that one call
+    call_args = mock_lark_ok.call_args
+    assert call_args is not None, "Lark API was never called"

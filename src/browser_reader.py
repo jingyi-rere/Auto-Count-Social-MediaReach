@@ -50,6 +50,18 @@ async def _get_instagram_screenshots(page, reel_url: str):
     sc_match = _re.search(r"/reel(?:s)?/([^/?#]+)", reel_url)
     shortcode = sc_match.group(1) if sc_match else reel_url.rstrip("/").split("/")[-1]
 
+    # SECURITY: Validate shortcode contains only safe characters before it is
+    # interpolated into page.evaluate() JS strings.  Instagram shortcodes are
+    # always base-62 + underscore + hyphen.  Anything else is suspicious and
+    # we bail out of the grid lookup (but still return the reel screenshot).
+    if not _re.fullmatch(r"[A-Za-z0-9_\-]+", shortcode):
+        log.error(
+            "Instagram: shortcode '%s' contains unsafe characters — "
+            "skipping grid screenshot to prevent JS injection.",
+            shortcode,
+        )
+        return reel_screenshot, None, shortcode
+
     # The author's link on the page looks like:
     #   https://www.instagram.com/ricebowlmy/reels/
     # Find the first such link that belongs to the content creator (not the

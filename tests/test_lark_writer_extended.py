@@ -78,48 +78,52 @@ def mock_lark(monkeypatch):
 
 
 class TestWriteRow:
-    def test_full_data_writes_four_cells(self, mock_lark):
+    def test_full_data_makes_single_api_call(self, mock_lark):
+        """
+        Plain English: all 4 fields (Date, Title, Content Type, Reach) must
+        be written in ONE Lark API call — not 4 separate calls.
+        This prevents partial writes if the process crashes mid-way.
+        """
         write_row("rec1", "2024-03-15", "My video caption", 50000)
-        assert mock_lark.call_count == 4
+        assert mock_lark.call_count == 1, (
+            f"Expected 1 atomic API call, got {mock_lark.call_count}. "
+            "Multiple calls risk leaving rows half-filled."
+        )
 
-    def test_null_date_skips_date_column(self, mock_lark):
-        """If date is None, only 3 cells written (D, E, G)."""
+    def test_null_date_still_single_api_call(self, mock_lark):
+        """If date is None it's skipped — but still only ONE API call with 3 fields."""
         write_row("rec1", None, "My caption", 1000)
-        assert mock_lark.call_count == 3
+        assert mock_lark.call_count == 1
 
-    def test_unparseable_date_skips_date_column(self, mock_lark):
-        """Relative date like '3 days ago' → skip Date column."""
+    def test_unparseable_date_still_single_api_call(self, mock_lark):
+        """Relative date like '3 days ago' → Date field skipped, still ONE API call."""
         write_row("rec1", "3 days ago", "My caption", 1000)
-        assert mock_lark.call_count == 3
+        assert mock_lark.call_count == 1
 
-    def test_null_view_count_skips_reach_column(self, mock_lark):
-        """If view_count is None, only 3 cells written (A, D, E)."""
+    def test_null_view_count_skips_reach_field(self, mock_lark):
+        """If view_count is None, Reach is omitted from the single API call."""
         write_row("rec1", "2024-03-15", "My caption", None)
-        assert mock_lark.call_count == 3
+        assert mock_lark.call_count == 1
+        written = mock_lark.call_args[0][0].request_body.fields
+        assert "Reach" not in written
 
-    def test_null_date_and_null_views_writes_two_cells(self, mock_lark):
-        """Both null → only D and E written."""
+    def test_null_date_and_null_views_omits_both_fields(self, mock_lark):
+        """Both null → Date and Reach omitted; one API call with 2 fields (Title + Content Type)."""
         write_row("rec1", None, "My caption", None)
-        assert mock_lark.call_count == 2
+        assert mock_lark.call_count == 1
+        written = mock_lark.call_args[0][0].request_body.fields
+        assert "Date" not in written
+        assert "Reach" not in written
 
     def test_content_type_always_content_casual(self, mock_lark):
         write_row("rec1", None, "caption", None)
-        calls = mock_lark.call_args_list
-        # Extract all field values written
-        written = {}
-        for call in calls:
-            req = call[0][0]  # UpdateAppTableRecordRequest
-            written.update(req.request_body.fields)
+        written = mock_lark.call_args[0][0].request_body.fields
         assert written.get("Content Type") == "Content Casual"
 
     def test_view_count_coerced_to_int(self, mock_lark):
         """Float view count must become int before writing."""
         write_row("rec1", None, "caption", 123.9)
-        calls = mock_lark.call_args_list
-        written = {}
-        for call in calls:
-            req = call[0][0]
-            written.update(req.request_body.fields)
+        written = mock_lark.call_args[0][0].request_body.fields
         assert written.get("Reach") == 123
         assert isinstance(written.get("Reach"), int)
 

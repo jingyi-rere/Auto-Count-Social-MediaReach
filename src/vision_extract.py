@@ -9,9 +9,10 @@ import json
 import base64
 import anthropic
 from PIL import Image
-from src._env import *  # noqa: loads .env from project root
+from src._env   import *  # noqa: loads .env from project root
+from src.utils  import clean_caption as _clean_caption  # shared, single source of truth
 
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = "claude-haiku-4-5"
 
 PROMPT = """\
 Look at this social media video post screenshot carefully.
@@ -67,15 +68,6 @@ def _get_client():
             api_key=os.getenv("ANTHROPIC_API_KEY")
         )
     return _client
-
-
-def _clean_caption(text: str) -> str:
-    """Remove hashtags (Unicode-aware) and collapse whitespace."""
-    if not text or not text.strip():
-        return "No caption"
-    cleaned = re.sub(r"#\w+", "", text, flags=re.UNICODE)
-    result = " ".join(cleaned.split())
-    return result if result else "No caption"
 
 
 def _compress_image(screenshot_bytes: bytes, max_bytes: int = 4_500_000) -> tuple:
