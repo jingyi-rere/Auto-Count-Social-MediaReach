@@ -165,7 +165,9 @@ def extract_from_screenshot(screenshot_bytes: bytes, prompt: str = None) -> dict
 
     # Normalise view_count to int or None
     vc = data.get("view_count")
-    if isinstance(vc, str):
+    if isinstance(vc, (int, float)) and not isinstance(vc, bool):
+        vc = int(vc)
+    elif isinstance(vc, str):
         vc = vc.strip()
         if vc.lower() in ("null", "none", ""):
             vc = None

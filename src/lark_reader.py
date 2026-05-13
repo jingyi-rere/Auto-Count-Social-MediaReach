@@ -16,26 +16,29 @@ FIELD_DATE  = os.getenv("LARK_FIELD_DATE",  "Date")
 FIELD_VIEWS = os.getenv("LARK_FIELD_VIEWS", "Reach")
 
 
-def _extract_url(raw) -> str:
+def _extract_url(raw):
     """
     Lark URL fields can come back in several shapes:
       - plain string:  "https://..."
       - dict:          {'link': 'https://...', 'text': '...'}
       - list of dicts: [{'link': 'https://...', 'text': '...'}]
-    Returns a clean URL string, or "" if nothing usable.
+    Returns a clean URL string, or None if nothing usable.
     """
     if not raw:
-        return ""
+        return None
     if isinstance(raw, str):
-        return raw.strip()
+        return raw.strip() or None
     if isinstance(raw, dict):
-        return (raw.get("link") or raw.get("text") or "").strip()
+        val = (raw.get("link") or "").strip()
+        return val or None
     if isinstance(raw, list) and raw:
         first = raw[0]
         if isinstance(first, dict):
-            return (first.get("link") or first.get("text") or "").strip()
-        return str(first).strip()
-    return ""
+            val = (first.get("link") or "").strip()
+            return val or None
+        val = str(first).strip()
+        return val or None
+    return None
 
 _client = None
 
