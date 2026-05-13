@@ -22,6 +22,9 @@ Thumbs.db
 screenshots/
 *.png
 
+# Logs (stay on your computer only)
+logs/
+
 # IDE
 .idea/
 .vscode/

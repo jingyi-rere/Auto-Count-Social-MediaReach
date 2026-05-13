@@ -9,9 +9,10 @@ for new rows (URLs you just pasted) and fills in the data automatically.
 Press Ctrl+C to stop.
 """
 import time
-from src.processor import process_all
-from src.reporter  import print_report
-from src.logger    import get_logger, LOG_FILE
+from src.processor      import process_all
+from src.reporter       import print_report
+from src.logger         import get_logger, LOG_FILE
+from src.friendly_errors import make_friendly
 
 log = get_logger("watcher")
 
@@ -42,6 +43,7 @@ if __name__ == "__main__":
                 log.info("Cycle #%d — no new rows to process", cycle)
         except Exception as e:
             log.error("Watcher cycle #%d crashed: %s", cycle, e, exc_info=True)
+            print(make_friendly(e))
 
         log.info("Next check in %d minutes...", CHECK_INTERVAL // 60)
         time.sleep(CHECK_INTERVAL)
