@@ -14,7 +14,10 @@ from lark_oapi.api.bitable.v1 import (
     UpdateAppTableRecordRequest,
     AppTableRecord,
 )
-from src._env import *  # noqa: loads .env from project root
+from src._env    import *  # noqa: loads .env from project root
+from src.logger  import get_logger
+
+log = get_logger("lark_writer")
 
 # ── Hard allowlist ─────────────────────────────────────────────
 ALLOWED_COLUMNS = {"A", "D", "E", "G"}
@@ -57,6 +60,7 @@ def write_cell(record_id: str, column: str, value) -> bool:
     no API call is ever made for forbidden columns.
     """
     if column not in ALLOWED_COLUMNS:
+        log.warning("Attempted write to FORBIDDEN column '%s' — blocked.", column)
         raise ValueError(
             f"FORBIDDEN: Cannot write to column '{column}'. "
             f"Only {sorted(ALLOWED_COLUMNS)} are allowed."
@@ -78,9 +82,12 @@ def write_cell(record_id: str, column: str, value) -> bool:
     response = _get_client().bitable.v1.app_table_record.update(request)
 
     if not response.success():
+        log.error("Lark API error writing column %s for record %s — code=%s msg=%s",
+                  column, record_id, response.code, response.msg)
         raise RuntimeError(
             f"Lark write error [{response.code}]: {response.msg}"
         )
+    log.debug("Wrote column %s → record %s (field=%s)", column, record_id, field_name)
     return True
 
 

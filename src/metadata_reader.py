@@ -8,6 +8,9 @@ Returns: { posted_date, caption, view_count } per URL.
 """
 import re
 import yt_dlp
+from src.logger import get_logger
+
+log = get_logger("metadata_reader")
 
 
 YDL_OPTS = {
@@ -43,6 +46,7 @@ def get_metadata(url: str) -> dict:
     Returns dict with posted_date, caption, view_count.
     Falls back gracefully if a field is unavailable.
     """
+    log.info("yt-dlp fetching metadata for: %s", url[:80])
     with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
         info = ydl.extract_info(url, download=False)
 
@@ -52,8 +56,11 @@ def get_metadata(url: str) -> dict:
     caption_raw = title if title else description
     caption = _clean_caption(caption_raw)
 
-    return {
+    result = {
         "posted_date": _format_date(info.get("upload_date")),
         "caption":     caption,
         "view_count":  info.get("view_count"),
     }
+    log.info("yt-dlp result — date=%s views=%s caption=%r",
+             result["posted_date"], result["view_count"], result["caption"][:50])
+    return result

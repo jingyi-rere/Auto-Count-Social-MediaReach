@@ -12,6 +12,9 @@ Login sessions stored in ~/.cache/auto-count/firefox-profile (login_once.py).
 import asyncio
 from pathlib import Path
 from playwright.async_api import async_playwright
+from src.logger import get_logger
+
+log = get_logger("browser_reader")
 
 FIREFOX_PROFILE_DIR = Path.home() / ".cache" / "auto-count" / "firefox-profile"
 FIREFOX_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
@@ -33,11 +36,13 @@ async def _get_instagram_screenshots(page, reel_url: str):
     grid_screenshot — profile reels grid (view counts visible)
     """
     # 1. Load the individual reel page
+    log.info("Instagram: loading reel page %s", reel_url[:80])
     await page.goto(reel_url, wait_until="domcontentloaded", timeout=45_000)
     await page.wait_for_timeout(4_000)
     await page.keyboard.press("Escape")
     await page.wait_for_timeout(500)
     reel_screenshot = await page.screenshot(full_page=False)
+    log.debug("Reel page screenshot taken (%d bytes)", len(reel_screenshot))
 
     # 2. Extract the shortcode and the profile reels grid URL
     # Instagram sometimes redirects /reel/ → /reels/ so handle both
@@ -67,6 +72,7 @@ async def _get_instagram_screenshots(page, reel_url: str):
 
     grid_screenshot = None
     if profile_reels_url:
+        log.info("Instagram: navigating to profile grid %s", profile_reels_url)
         # 3. Navigate to profile reels grid
         await page.goto(
             profile_reels_url,
@@ -103,6 +109,11 @@ async def _get_instagram_screenshots(page, reel_url: str):
             await page.evaluate("window.scrollBy(0, 700)")
             await page.wait_for_timeout(800)
 
+        if found_reel:
+            log.info("Instagram: found reel %s in grid — centred for screenshot", shortcode)
+        else:
+            log.warning("Instagram: reel %s not found in first 15 scrolls — "
+                        "using top of grid as fallback", shortcode)
         if not found_reel:
             # Reel is older than what's in the first ~60 posts.
             # Scroll to the reels grid section (skip profile header / highlights).
@@ -113,6 +124,9 @@ async def _get_instagram_screenshots(page, reel_url: str):
             await page.wait_for_timeout(1_000)
 
         grid_screenshot = await page.screenshot(full_page=False)
+        log.debug("Grid screenshot taken (%d bytes)", len(grid_screenshot))
+    else:
+        log.warning("Instagram: could not find profile reels URL — no grid screenshot")
 
     return reel_screenshot, grid_screenshot, shortcode
 
