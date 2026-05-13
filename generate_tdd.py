@@ -161,11 +161,11 @@ doc.add_paragraph()
 meta = doc.add_table(rows=5, cols=2)
 meta.alignment = WD_TABLE_ALIGNMENT.CENTER
 for i, (lbl, val) in enumerate([
-    ('Document Version:', '2.0'),
+    ('Document Version:', '3.0'),
     ('Date:', datetime.date.today().strftime('%d %B %Y')),
     ('Status:', 'Final'),
     ('Prepared By:', 'jingyi-rere'),
-    ('Based On:', 'BRD v4.0 — Auto Count Social Media Reach'),
+    ('Based On:', 'BRD v5.0 — Auto Count Social Media Reach'),
 ]):
     set_col_width(meta.rows[i].cells[0], 2.2)
     set_col_width(meta.rows[i].cells[1], 4.3)
@@ -186,7 +186,8 @@ make_table(doc,
     ['Version', 'Date', 'Author', 'Changes'],
     [
         ('1.0', '09 May 2026', 'jingyi-rere', 'Initial TDD — platform APIs approach'),
-        ('2.0', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Redesigned: Playwright + Claude Vision (no APIs), hard column allowlist, run.py trigger, write A/D/E/G only'),
+        ('2.0', '11 May 2026', 'jingyi-rere', 'Redesigned: Playwright + Claude Vision (no APIs), hard column allowlist, run.py trigger, write A/D/E/G only'),
+        ('3.0', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Updated: watcher.py background daemon, yt-dlp for YouTube/TikTok, Firefox for Instagram/RedNote, single atomic Lark write, retry logic, shortcode security validation, startup env check, 283 tests, src/ module layout, structured logging'),
     ],
     [0.7, 1.5, 1.5, 3.8]
 )
@@ -197,11 +198,16 @@ doc.add_page_break()
 add_heading(doc, '1. System Overview', 1)
 add_body(doc, (
     'The Auto Count Social Media Reach system is a Python-based automation tool. '
-    'The user pastes video URLs into Column F of their Lark Sheet, then runs python run.py. '
-    'The system reads those URLs, opens each video in a real Chrome browser using Playwright, '
-    'takes a screenshot, and sends it to Claude Haiku Vision to extract the posted date, '
-    'caption, and view count. The data is then written to columns A, D, E, G of the Lark Sheet. '
-    'A hard allowlist in lark_writer.py enforces that no other columns can ever be written to.'
+    'The user pastes video URLs into Column F of their Lark Bitable, then runs python watcher.py once. '
+    'The watcher checks Lark every 5 minutes for new URLs and processes them automatically. '
+    'Each URL is routed to the best extraction method: '
+    'yt-dlp (fast, exact numbers, no browser) for YouTube and TikTok; '
+    'Firefox + Claude Haiku Vision (claude-haiku-4-5) for Instagram and RedNote. '
+    'Instagram uses a two-screenshot approach: reel page for caption and date, '
+    'profile grid for view count. '
+    'All extracted data is written to columns A, D, E, G in a single atomic Lark API call. '
+    'A hard allowlist in lark_writer.py ensures no other columns can ever be written to. '
+    'All activity is logged to logs/auto_count.log. Errors are displayed in plain English.'
 ))
 
 doc.add_paragraph()
@@ -209,15 +215,19 @@ add_heading(doc, '1.1 Key Design Decisions', 2)
 make_table(doc,
     ['Decision', 'Choice', 'Reason'],
     [
-        ('Data extraction method', 'Playwright + Claude Vision (NO platform APIs)', 'Works on all 7 platforms including RedNote which has no API. More reliable and future-proof.'),
-        ('Column safety', 'Hard allowlist raises exception for B/C/F/H', 'Prevents any accidental data corruption in user-managed columns.'),
-        ('Column F', 'Read only — never write', 'User owns this column. System reads URL from here but never modifies it.'),
-        ('Row management', 'Write into existing rows only', 'User controls row structure. System fills in the blanks only.'),
-        ('Trigger', 'python run.py — no UI', 'Simple, fast, no dependencies on web frameworks.'),
-        ('AI model', 'claude-haiku-4-5-20251001 for vision', 'Fast and cost-effective for screenshot analysis.'),
-        ('Browser profile', 'Persistent Chrome at ~/.cache/auto-count/chrome-profile', 'Retains login sessions across runs — no re-login needed.'),
+        ('YouTube/TikTok extraction', 'yt-dlp (no browser)', 'Fast, exact numbers. Uses Chrome cookies for auth. No screenshots needed.'),
+        ('Instagram/RedNote extraction', 'Firefox + Claude Haiku Vision (claude-haiku-4-5)', 'No API available. Firefox with saved login handles paywalls/popups.'),
+        ('Instagram view count', 'Two-screenshot: reel page + profile grid', 'Individual reel pages hide view counts on desktop. Profile grid always shows them.'),
+        ('Column safety', 'Hard allowlist raises ValueError for B/C/F/H', 'Prevents accidental data corruption in user-managed columns. Enforced in code, not config.'),
+        ('Lark write strategy', 'Single atomic API call per row in write_row()', 'Prevents partial writes if process crashes mid-row. All fields written or none.'),
+        ('Retry logic', 'with_retry(): 3 attempts, 2s/4s/8s back-off', 'Handles transient network blips without crashing the watcher loop.'),
+        ('Startup validation', '_validate_env() checks all .env vars at boot', 'Clear error at startup instead of confusing NoneType crash mid-run.'),
+        ('Shortcode security', 're.fullmatch() validates shortcode before JS eval', 'Prevents JS injection if a malicious URL reaches the page.evaluate() call.'),
+        ('Trigger mode', 'watcher.py daemon, checks Lark every 5 minutes', 'User pastes URL once - data appears automatically. No manual run per batch.'),
+        ('Browser', 'Firefox persistent context, ~/.cache/auto-count/firefox-profile', 'Separate from user Chrome. Retains Instagram/RedNote login across runs.'),
+        ('Shared utilities', 'src/utils.py: clean_caption + with_retry', 'Single source of truth - no duplicate code across modules.'),
     ],
-    [1.8, 2.2, 3.5]
+    [1.8, 2.5, 3.2]
 )
 
 # ── 2. SYSTEM ARCHITECTURE ────────────────────────────────────────────────────
@@ -227,55 +237,67 @@ add_heading(doc, '2.1 Component Overview', 2)
 make_table(doc,
     ['File', 'Component', 'What It Does'],
     [
-        ('run.py', 'Main Entry Point', 'Orchestrates all components. User runs this file.'),
-        ('lark_reader.py', 'Lark Sheet Reader', 'Reads Lark Sheet. Returns rows where Column F has URL and A/D/E/G are empty.'),
-        ('lark_writer.py', 'Lark Sheet Writer', 'Writes to columns A/D/E/G ONLY. Hard allowlist raises exception for any other column.'),
-        ('browser_reader.py', 'Browser Controller', 'Opens video URLs in persistent Chrome using Playwright. Takes screenshots.'),
-        ('vision_extract.py', 'AI Vision Extractor', 'Sends screenshot to Claude Haiku Vision. Returns JSON: posted_date, caption, view_count.'),
-        ('processor.py', 'Data Processor', 'Cleans caption (Unicode hashtag strip), formats date, sets Content Type default.'),
-        ('reporter.py', 'Run Reporter', 'Prints run summary: rows processed, successes, failures, errors.'),
+        ('watcher.py', 'Background Daemon', 'Checks Lark every 5 min. Validates .env on startup. Calls process_all() each cycle.'),
+        ('src/lark_reader.py', 'Lark Bitable Reader', 'Reads Lark. Returns (record_id, url) pairs where Column F has URL and A/D/E/G are empty.'),
+        ('src/lark_writer.py', 'Lark Bitable Writer', 'Writes A/D/E/G in ONE atomic API call. Hard allowlist raises ValueError for any other column. Retries 3x.'),
+        ('src/browser_reader.py', 'Firefox Controller', 'Opens Instagram/RedNote in persistent Firefox. Two-screenshot Instagram flow (reel + grid).'),
+        ('src/metadata_reader.py', 'yt-dlp Extractor', 'Extracts YouTube/TikTok metadata without a browser. Fast and exact.'),
+        ('src/vision_extract.py', 'Claude Vision Extractor', 'Sends screenshot to claude-haiku-4-5. Compresses images >4.5MB. Returns posted_date, caption, view_count.'),
+        ('src/processor.py', 'URL Router + Orchestrator', 'Routes each URL to yt-dlp or Firefox+Vision. Merges Instagram two-screenshot results.'),
+        ('src/utils.py', 'Shared Utilities', 'clean_caption() (Unicode hashtag strip) and with_retry() decorator. Used across all modules.'),
+        ('src/logger.py', 'Structured Logger', 'Rotating log file at logs/auto_count.log (1MB, 7 backups). INFO to terminal, DEBUG to file.'),
+        ('src/friendly_errors.py', 'Error Translator', 'Maps 15+ technical exceptions to plain English messages for non-technical users.'),
+        ('src/reporter.py', 'Run Reporter', 'Prints run summary: rows processed, successes, failures, friendly error descriptions.'),
     ],
-    [1.8, 1.8, 4.0]
+    [2.0, 1.8, 3.7]
 )
 
 add_heading(doc, '2.2 System Flow Diagram', 2)
 
 for line in [
-    '  USER pastes URLs into Lark Column F',
+    '  USER starts watcher once: python watcher.py',
+    '  watcher.py: validates .env, then loops every 5 minutes',
     '         |',
-    '  USER runs: python run.py',
+    '  USER pastes URLs into Lark Column F (any time)',
     '         |',
-    '  [lark_reader.py]',
-    '  Reads Lark Sheet -- finds rows where F has URL + A/D/E/G empty',
+    '  [lark_reader.py] -- finds rows where F has URL + A/D/E/G empty',
     '         |',
     '         | for each URL',
     '         v',
-    '  [browser_reader.py]',
-    '  Opens URL in persistent Chrome (Playwright)',
-    '  Takes screenshot of video page',
+    '  [processor.py] _route(url)',
+    '         |',
+    '         +---- YouTube / TikTok? ----+',
+    '         |                           v',
+    '         |             [metadata_reader.py]',
+    '         |             yt-dlp: posted_date, caption, view_count',
+    '         |',
+    '         +---- Instagram / RedNote? -+',
+    '                                     v',
+    '                       [browser_reader.py] Firefox',
+    '                       Instagram: reel screenshot (caption+date)',
+    '                                + grid screenshot (view count)',
+    '                       RedNote:  full-page screenshot',
+    '                                     v',
+    '                       [vision_extract.py] claude-haiku-4-5',
+    '                       Compresses if >4.5MB',
+    '                       Returns: { posted_date, caption, view_count }',
     '         |',
     '         v',
-    '  [vision_extract.py]',
-    '  Sends screenshot to Claude Haiku Vision',
-    '  Returns JSON: { posted_date, caption, view_count }',
-    '         |',
-    '         v',
-    '  [processor.py]',
-    '  clean_caption() -- strips ALL Unicode hashtags',
-    '  format_date()   -- standardises date format',
-    '  set_content_type() -- returns "Content Casual"',
+    '  [src/utils.py] clean_caption() -- strips ALL Unicode hashtags',
     '         |',
     '         v',
     '  [lark_writer.py]  <-- HARD ALLOWLIST: A, D, E, G only',
+    '  ONE atomic API call: { Date, Title, Content Type, Reach }',
     '  Column A <-- posted_date',
     '  Column D <-- cleaned caption',
-    '  Column E <-- "Content Casual"',
+    '  Column E <-- "Content Casual"  (always)',
     '  Column G <-- view_count',
-    '  Column B/C/F/H --> RAISES EXCEPTION immediately',
+    '  Column B/C/F/H --> ValueError immediately',
+    '  Retries 3x on failure (2s, 4s, 8s back-off)',
     '         |',
     '         v',
-    '  [reporter.py]',
-    '  Prints run summary to terminal',
+    '  [reporter.py] + [logger.py] + [friendly_errors.py]',
+    '  logs/auto_count.log + terminal summary',
 ]:
     add_code(doc, line)
 
@@ -286,16 +308,18 @@ add_heading(doc, '3. Technology Stack', 1)
 make_table(doc,
     ['Library / Tool', 'Version', 'Purpose'],
     [
-        ('Python', '3.11+', 'Core programming language'),
-        ('playwright', 'latest (pinned)', 'Browser automation — opens video pages, takes screenshots'),
-        ('anthropic', 'latest (pinned)', 'Claude Haiku Vision API for screenshot analysis + AI recommendations'),
-        ('lark-oapi', 'latest (pinned)', 'Official Lark Open API SDK for reading/writing Lark Sheet'),
+        ('Python', '3.9+', 'Core programming language'),
+        ('playwright', 'latest (pinned)', 'Firefox browser automation for Instagram/RedNote screenshots'),
+        ('yt-dlp', 'latest (pinned)', 'YouTube/TikTok metadata extraction without browser (fast, exact)'),
+        ('anthropic', 'latest (pinned)', 'Claude Haiku Vision API (claude-haiku-4-5) for screenshot analysis'),
+        ('Pillow (PIL)', 'latest (pinned)', 'Image compression — reduces screenshots >4.5MB before sending to Claude'),
+        ('lark-oapi', 'latest (pinned)', 'Official Lark Open API SDK for reading/writing Lark Bitable'),
         ('python-dotenv', 'latest (pinned)', 'Load API keys and secrets from .env file securely'),
-        ('pytest', 'latest (pinned)', 'Run automated tests — especially column allowlist tests'),
-        ('re (built-in)', 'built-in', 'Unicode-aware regex for hashtag removal'),
-        ('pathlib (built-in)', 'built-in', 'File path management for Chrome profile directory'),
-        ('json (built-in)', 'built-in', 'Parse Claude Vision response JSON'),
-        ('datetime (built-in)', 'built-in', 'Date formatting and standardisation'),
+        ('python-dateutil', 'latest (pinned)', 'Parse flexible date strings (e.g. "3 days ago") into timestamps'),
+        ('pytest', 'latest (pinned)', '283 automated tests across 6 test files — no real network calls'),
+        ('re (built-in)', 'built-in', 'Unicode-aware regex for hashtag removal and shortcode validation'),
+        ('logging (built-in)', 'built-in', 'Structured rotating log file (logs/auto_count.log)'),
+        ('asyncio (built-in)', 'built-in', 'Async event loop for Playwright browser operations'),
     ],
     [2.2, 1.0, 4.3]
 )
@@ -547,7 +571,7 @@ add_heading(doc, '8. Claude Vision Integration', 1)
 make_table(doc,
     ['Setting', 'Value'],
     [
-        ('Model', 'claude-haiku-4-5-20251001'),
+        ('Model', 'claude-haiku-4-5'),
         ('API Key', 'ANTHROPIC_API_KEY from .env — never logged'),
         ('Input', 'Base64-encoded screenshot image + extraction prompt'),
         ('Output', 'JSON string: { posted_date, caption, view_count }'),
@@ -580,7 +604,8 @@ make_table(doc,
         ('.env file', 'Added to .gitignore — never pushed to GitHub.'),
         ('.env.template', 'A safe template with placeholder values pushed to GitHub for reference.'),
         ('Lark credentials', 'App ID and Secret in .env. Token refreshed per session.'),
-        ('Chrome profile', 'Stored locally at ~/.cache/auto-count/chrome-profile. Never shared.'),
+        ('Firefox profile', 'Stored locally at ~/.cache/auto-count/firefox-profile. Never shared. Contains login sessions.'),
+        ('Shortcode validation', 're.fullmatch(r"[A-Za-z0-9_-]+", shortcode) before page.evaluate(). Prevents JS injection from malicious URLs.'),
         ('Column protection', 'Hard allowlist in code raises exception — cannot be bypassed at runtime.'),
     ],
     [2.5, 5.0]
@@ -590,19 +615,33 @@ make_table(doc,
 add_heading(doc, '11. Project File Structure', 1)
 for line in [
     'Auto-Count-Social-MediaReach/',
-    '|-- run.py                    # Main entry point: python run.py',
-    '|-- lark_reader.py            # Read Lark Sheet, find rows to process',
-    '|-- lark_writer.py            # Write to Lark Sheet (hard allowlist A/D/E/G)',
-    '|-- browser_reader.py         # Playwright Chrome automation + screenshots',
-    '|-- vision_extract.py         # Claude Haiku Vision: screenshot -> JSON',
-    '|-- processor.py              # clean_caption, format_date, set_content_type',
-    '|-- reporter.py               # Print run summary to terminal',
+    '|-- watcher.py                # Background daemon: python watcher.py',
+    '|-- src/',
+    '|   |-- processor.py          # URL router + orchestrator (routes to yt-dlp or Firefox+Vision)',
+    '|   |-- lark_reader.py        # Read Lark Bitable, find rows to process',
+    '|   |-- lark_writer.py        # Write to Lark Bitable (hard allowlist A/D/E/G, single call, retry)',
+    '|   |-- browser_reader.py     # Firefox automation: Instagram 2-screenshot, RedNote screenshot',
+    '|   |-- metadata_reader.py    # yt-dlp: YouTube/TikTok metadata (no browser)',
+    '|   |-- vision_extract.py     # Claude Vision: screenshot -> JSON (claude-haiku-4-5)',
+    '|   |-- utils.py              # Shared: clean_caption(), with_retry() decorator',
+    '|   |-- logger.py             # Rotating log file: logs/auto_count.log',
+    '|   |-- friendly_errors.py    # Maps technical errors to plain English messages',
+    '|   |-- reporter.py           # Print run summary to terminal',
+    '|   |-- _env.py               # Load .env from project root',
     '|-- tests/',
-    '|   |-- test_lark_writer.py   # pytest: B/C/F/H writes raise ValueError',
-    '|   |-- test_processor.py     # pytest: hashtag removal tests',
+    '|   |-- test_lark_writer.py        # B/C/F/H raises ValueError, single-call write',
+    '|   |-- test_lark_writer_extended.py  # Extended write tests',
+    '|   |-- test_lark_reader.py        # URL extraction edge cases',
+    '|   |-- test_positive_cases.py     # 67 positive tests',
+    '|   |-- test_negative_cases.py     # 67 negative/edge case tests',
+    '|   |-- test_security.py           # 16 security tests',
+    '|   |-- test_performance.py        # 8 performance/timing tests',
+    '|   |-- test_uiux.py               # 15 UI/UX and error message tests',
+    '|   |-- test_stress.py             # 21 stress tests (50 URLs, duplicates, weird inputs)',
+    '|-- logs/                     # auto_count.log (gitignored)',
     '|-- .env                      # API keys (NEVER pushed to GitHub)',
     '|-- .env.template             # Safe template with placeholder values',
-    '|-- .gitignore                # Excludes .env, chrome-profile, __pycache__',
+    '|-- .gitignore                # Excludes .env, logs/, firefox-profile, __pycache__',
     '|-- requirements.txt          # Pinned Python dependencies',
     '|-- BRD_Auto_Count_Social_Media_Reach.docx',
     '|-- TDD_Auto_Count_Social_Media_Reach.docx',
@@ -630,19 +669,18 @@ make_table(doc,
 # ── 13. TESTING PLAN ──────────────────────────────────────────────────────────
 add_heading(doc, '13. Testing Plan', 1)
 make_table(doc,
-    ['Test', 'Type', 'What Is Tested', 'Pass Criteria'],
+    ['Test File', 'Count', 'What Is Tested', 'Pass Criteria'],
     [
-        ('test_write_B_raises', 'pytest unit', 'lark_writer rejects Column B write', 'ValueError raised'),
-        ('test_write_C_raises', 'pytest unit', 'lark_writer rejects Column C write', 'ValueError raised'),
-        ('test_write_F_raises', 'pytest unit', 'lark_writer rejects Column F write', 'ValueError raised'),
-        ('test_write_H_raises', 'pytest unit', 'lark_writer rejects Column H write', 'ValueError raised'),
-        ('test_write_A_ok', 'pytest unit', 'lark_writer allows Column A write', 'No exception raised'),
-        ('test_clean_caption_basic', 'pytest unit', 'Hashtag removal — basic English', 'Zero # chars in output'),
-        ('test_clean_caption_unicode', 'pytest unit', 'Hashtag removal — Chinese/Arabic tags', 'Zero # chars in output'),
-        ('test_clean_caption_empty', 'pytest unit', 'Empty caption returns "No caption"', 'Returns "No caption"'),
-        ('End-to-end YouTube x3', 'Integration', 'Full run on 3 real YouTube URLs', 'Lark Sheet A/D/E/G filled correctly'),
+        ('test_lark_writer.py + test_lark_writer_extended.py', '~30', 'Column allowlist, single atomic write, retry, field content', 'All pass — no partial writes'),
+        ('test_positive_cases.py', '67', 'Happy path for all modules: URLs, dates, captions, views, routing', 'All 67 pass'),
+        ('test_negative_cases.py', '67', 'Edge cases: null dates, empty captions, bad URLs, API errors, forbidden columns', 'All 67 pass'),
+        ('test_security.py', '16', 'API keys not in code, .env gitignored, column protection, shortcode safety', 'All 16 pass'),
+        ('test_performance.py', '8', 'Function speed (<1s each), 5-URL batch <2s, 15-URL batch <5s (mocked)', 'All under time limit'),
+        ('test_uiux.py', '15', 'Error messages in plain English, log file format, result structure', 'All 15 pass'),
+        ('test_stress.py', '21', '50 URLs at once, duplicate URLs, Arabic/Japanese text, 10 failures in a row', 'System never crashes'),
+        ('TOTAL', '283', 'All tests mocked — no real network calls needed', 'pytest: 283 passed'),
     ],
-    [2.0, 1.2, 2.5, 1.8]
+    [2.8, 0.6, 2.8, 1.3]
 )
 
 # ── 14. DEPENDENCIES ──────────────────────────────────────────────────────────
@@ -672,7 +710,7 @@ make_table(doc,
 doc.add_paragraph()
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-run = p.add_run('— End of Document — Version 2.0 —')
+run = p.add_run('— End of Document — Version 3.0 —')
 run.italic = True
 run.font.size = Pt(9)
 run.font.color.rgb = RGBColor(*GREY)

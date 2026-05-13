@@ -145,7 +145,7 @@ doc.add_paragraph()
 meta = doc.add_table(rows=5, cols=2)
 meta.alignment = WD_TABLE_ALIGNMENT.CENTER
 for i, (lbl, val) in enumerate([
-    ('Document Version:', '4.0'),
+    ('Document Version:', '5.0'),
     ('Date:', datetime.date.today().strftime('%d %B %Y')),
     ('Status:', 'Final'),
     ('Prepared By:', 'jingyi-rere'),
@@ -172,7 +172,8 @@ make_table(doc,
         ('1.0', '07 May 2026', 'jingyi-rere', 'Initial draft'),
         ('2.0', '09 May 2026', 'jingyi-rere', 'Added user stories, MoSCoW, As-Is vs To-Be, Risk Register, Roadmap'),
         ('3.0', '09 May 2026', 'jingyi-rere', 'Updated: video content only, Lark Sheet output, exact column mapping A-H'),
-        ('4.0', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Updated: Playwright + Claude Vision approach (no platform APIs), hard column rules, run.py trigger, write to A/D/E/G only'),
+        ('4.0', '11 May 2026', 'jingyi-rere', 'Updated: Playwright + Claude Vision approach (no platform APIs), hard column rules, run.py trigger, write to A/D/E/G only'),
+        ('5.0', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Updated: watcher.py background daemon (every 5 min), yt-dlp for YouTube/TikTok, Firefox for Instagram/RedNote, 283 automated tests, structured logging, retry logic, startup validation, security hardening'),
     ],
     [0.7, 1.5, 1.5, 3.8]
 )
@@ -184,11 +185,14 @@ add_heading(doc, '1. Executive Summary', 1)
 add_body(doc, (
     'This document defines the business requirements for an AI-assisted Social Media Video Metrics '
     'Automation system. The system is for a single video content creator managing video content across '
-    '7 social media platforms. The user pastes video URLs directly into their Lark Sheet (Column F). '
-    'The system then automatically reads those URLs, opens each video in a real browser using Playwright, '
-    'takes a screenshot, and uses Claude AI Vision to extract the posted date, video caption, and view count. '
-    'The extracted data is written into the correct Lark Sheet columns automatically. '
-    'The system runs via a single command: python run.py. No UI is required.'
+    'multiple social media platforms. The user pastes video URLs directly into their Lark Bitable (Column F). '
+    'A background watcher (watcher.py) checks the sheet every 5 minutes. When new URLs are found, '
+    'the system automatically routes each URL to the best extraction method: '
+    'yt-dlp (fast, exact numbers) for YouTube and TikTok; '
+    'Firefox browser + Claude AI Vision for Instagram and RedNote. '
+    'The extracted posted date, video caption (hashtags removed), and view count are written into '
+    'the correct Lark columns automatically. '
+    'The system runs via: python watcher.py — leave it running in Terminal. No UI is required.'
 ))
 
 # ── 2. HARD RULES ─────────────────────────────────────────────────────────────
@@ -233,8 +237,8 @@ add_body(doc, 'With the new system, the user only does TWO things:')
 make_table(doc,
     ['Step', 'What the User Does', 'What the System Does'],
     [
-        ('1', 'Paste video URLs into Column F of the Lark Sheet', 'Nothing yet — waits for user to finish'),
-        ('2', 'Run: python run.py', 'Reads URLs from Column F, opens each in browser, takes screenshot, uses Claude Vision to extract data, writes to columns A/D/E/G'),
+        ('1', 'Start watcher once: python watcher.py', 'Runs in background, checks Lark every 5 minutes for new URLs'),
+        ('2', 'Paste video URLs into Column F of the Lark Bitable', 'Detects new URLs automatically within 5 minutes, routes each URL to yt-dlp (YouTube/TikTok) or Firefox+Vision (Instagram/RedNote), writes extracted data to columns A/D/E/G'),
     ],
     [0.5, 2.8, 4.2]
 )
@@ -256,12 +260,15 @@ make_table(doc,
 add_heading(doc, '4. Business Objectives', 1)
 for obj in [
     'Save time — reduce reporting time by at least 80% per cycle.',
-    'User pastes URLs into Column F — system fills A, D, E, G automatically.',
+    'User pastes URLs into Column F — watcher fills A, D, E, G automatically within 5 minutes.',
     'Extract video captions and remove all hashtags (Unicode-aware) automatically.',
     'Default Content Type to "Content Casual" in Column E — always.',
-    'Generate AI-powered video performance analysis and content recommendations.',
-    'Support all 7 platforms using Playwright browser automation + Claude Vision.',
-    'Run with a single command: python run.py. No UI, no manual steps.',
+    'Use yt-dlp for YouTube/TikTok (fast, exact numbers) and Firefox + Claude Vision for Instagram/RedNote.',
+    'Run with a single command: python watcher.py. Leave it running. No manual steps per URL.',
+    'Write all data atomically in one Lark API call — no risk of partial data if system crashes.',
+    'Retry failed writes automatically (up to 3 times) — resilient to temporary network issues.',
+    'Validate .env configuration on startup — clear error message if any setting is missing.',
+    'Log all activity to logs/auto_count.log for easy troubleshooting.',
 ]:
     add_bullet(doc, obj)
 
@@ -315,15 +322,15 @@ doc.add_paragraph()
 make_table(doc,
     ['Step', 'What Happens', 'Technology Used'],
     [
-        ('1', 'User pastes video URLs into Column F of Lark Sheet', 'User action'),
-        ('2', 'User runs: python run.py', 'Terminal command'),
-        ('3', 'System reads Lark Sheet — finds rows where Column F has a URL but A/D/E/G are empty', 'lark_reader.py + Lark API'),
-        ('4', 'For each URL, system opens the video in a real Chrome browser', 'Playwright + persistent Chrome profile'),
-        ('5', 'System takes a screenshot of the video page', 'Playwright screenshot'),
-        ('6', 'Claude AI Vision analyses the screenshot and extracts: posted date, caption, view count', 'claude-haiku-4-5 vision model'),
-        ('7', 'System cleans the caption (removes all hashtags)', 'processor.py with Unicode regex'),
-        ('8', 'System writes data to columns A, D, E, G only', 'lark_writer.py with hard allowlist'),
-        ('9', 'System prints a run summary showing success/failure for each URL', 'reporter.py'),
+        ('1', 'User starts watcher once: python watcher.py', 'Terminal command'),
+        ('2', 'User pastes video URLs into Column F of Lark Bitable', 'User action'),
+        ('3', 'Watcher checks Lark every 5 minutes — finds rows where Column F has URL but A/D/E/G are empty', 'watcher.py + lark_reader.py + Lark API'),
+        ('4a', 'YouTube / TikTok URLs: metadata extracted directly (no browser needed)', 'yt-dlp + Chrome cookies'),
+        ('4b', 'Instagram / RedNote URLs: video opened in Firefox, screenshot taken', 'Playwright + persistent Firefox profile'),
+        ('4c', 'Instagram: two screenshots — reel page (caption/date) + grid page (view count)', 'Firefox + Claude Vision (claude-haiku-4-5)'),
+        ('5', 'System cleans the caption (removes all hashtags, Unicode-aware)', 'src/utils.py clean_caption()'),
+        ('6', 'System writes all data to columns A, D, E, G in ONE atomic Lark API call', 'lark_writer.py with hard allowlist + retry'),
+        ('7', 'All activity logged to logs/auto_count.log. Errors shown in plain English.', 'src/logger.py + src/friendly_errors.py'),
     ],
     [0.5, 3.5, 3.5]
 )
@@ -333,15 +340,15 @@ add_heading(doc, '8. Supported Platforms', 1)
 make_table(doc,
     ['Platform', 'Video Format', 'Column G (Views)', 'Column D (Caption)', 'Data Source'],
     [
-        ('Instagram', 'Reels', 'Reels view count', 'Post caption — hashtags removed', 'Playwright + Claude Vision'),
-        ('TikTok', 'Video', 'Total video views', 'Video description — hashtags removed', 'Playwright + Claude Vision'),
-        ('Facebook', 'Video / Reels', 'Video views', 'Post caption — hashtags removed', 'Playwright + Claude Vision'),
-        ('YouTube', 'Video / Shorts', 'Total video views', 'Video title', 'Playwright + Claude Vision'),
-        ('X (Twitter)', 'Video post', 'Video views', 'Tweet text — hashtags removed', 'Playwright + Claude Vision'),
-        ('RedNote', 'Video', 'Video views', 'Post caption — hashtags removed', 'Playwright + Claude Vision'),
-        ('Threads', 'Video post', 'Video views', 'Post caption — hashtags removed', 'Playwright + Claude Vision'),
+        ('YouTube', 'Video / Shorts', 'Total video views', 'Video title', 'yt-dlp (no browser needed — fast & exact)'),
+        ('TikTok', 'Video', 'Total video views', 'Video description — hashtags removed', 'yt-dlp (no browser needed — fast & exact)'),
+        ('Instagram', 'Reels', 'Reels view count', 'Post caption — hashtags removed', 'Firefox + Claude Vision (2-screenshot approach)'),
+        ('RedNote (小红书)', 'Video', 'Video views', 'Post caption — hashtags removed', 'Firefox + Claude Vision'),
+        ('Facebook', 'Video / Reels', 'Video views', 'Post caption — hashtags removed', 'Firefox + Claude Vision'),
+        ('X (Twitter)', 'Video post', 'Video views', 'Tweet text — hashtags removed', 'Firefox + Claude Vision'),
+        ('Threads', 'Video post', 'Video views', 'Post caption — hashtags removed', 'Firefox + Claude Vision'),
     ],
-    [1.1, 1.1, 1.3, 2.1, 1.9]
+    [1.2, 1.1, 1.3, 2.1, 1.8]
 )
 
 # ── 9. FUNCTIONAL REQUIREMENTS ────────────────────────────────────────────────
@@ -356,23 +363,26 @@ C = ('C', False, ORANGE)
 make_table(doc,
     ['ID', 'Priority', 'Requirement'],
     [
-        ('FR-01', M, 'System reads Lark Sheet to find rows where Column F has a URL and columns A/D/E/G are empty.'),
-        ('FR-02', M, 'System opens each video URL in a real Chrome browser using Playwright with a persistent profile.'),
-        ('FR-03', M, 'System takes a screenshot of the video page.'),
-        ('FR-04', M, 'System sends screenshot to Claude Haiku Vision model to extract posted date, caption, and view count.'),
-        ('FR-05', M, 'System strips ALL hashtags from caption using Unicode-aware regex before writing to Column D.'),
-        ('FR-06', M, 'System writes posted date to Column A only.'),
-        ('FR-07', M, 'System writes cleaned caption to Column D only. Writes "No caption" if empty.'),
-        ('FR-08', M, 'System writes "Content Casual" to Column E only. Hardcoded always.'),
-        ('FR-09', M, 'System writes view count to Column G only.'),
-        ('FR-10', M, 'System NEVER writes to Columns B, C, F, or H. Any attempt raises an exception immediately.'),
-        ('FR-11', M, 'System writes into existing rows only — never appends new rows.'),
-        ('FR-12', M, 'System triggers via python run.py only. No UI required.'),
-        ('FR-13', M, 'System supports all 7 platforms: Instagram, TikTok, Facebook, YouTube, X, RedNote, Threads.'),
-        ('FR-14', S, 'System prints a run summary showing success/failure status for each URL processed.'),
-        ('FR-15', S, 'System generates AI performance analysis and content recommendations after processing.'),
-        ('FR-16', S, 'If a URL fails, system logs the error and continues processing remaining URLs.'),
-        ('FR-17', C, 'System compares current cycle performance against previous cycle.'),
+        ('FR-01', M, 'System reads Lark Bitable to find rows where Column F has a URL and columns A/D/E/G are empty.'),
+        ('FR-02', M, 'System routes YouTube/TikTok URLs to yt-dlp for fast, exact metadata extraction (no browser).'),
+        ('FR-03', M, 'System routes Instagram/RedNote URLs to Firefox + Claude Vision for screenshot-based extraction.'),
+        ('FR-04', M, 'For Instagram: system takes two screenshots — reel page (caption + date) and profile grid (view count).'),
+        ('FR-05', M, 'System sends screenshots to Claude Haiku Vision (claude-haiku-4-5) to extract posted date, caption, view count.'),
+        ('FR-06', M, 'System strips ALL hashtags from caption using Unicode-aware regex before writing to Column D.'),
+        ('FR-07', M, 'System writes posted date to Column A only.'),
+        ('FR-08', M, 'System writes cleaned caption to Column D only. Writes "No caption" if empty.'),
+        ('FR-09', M, 'System writes "Content Casual" to Column E only. Hardcoded always.'),
+        ('FR-10', M, 'System writes view count to Column G only.'),
+        ('FR-11', M, 'System NEVER writes to Columns B, C, F, or H. Any attempt raises an exception immediately.'),
+        ('FR-12', M, 'System writes all fields for a row in ONE atomic Lark API call — prevents partial data if system crashes.'),
+        ('FR-13', M, 'System writes into existing rows only — never appends new rows.'),
+        ('FR-14', M, 'System runs as a background watcher (watcher.py) — checks Lark every 5 minutes automatically.'),
+        ('FR-15', M, 'System validates all required .env variables on startup — shows clear error if any are missing.'),
+        ('FR-16', M, 'System retries failed Lark writes up to 3 times with exponential back-off (2s, 4s, 8s).'),
+        ('FR-17', S, 'System prints a run summary showing success/failure status for each URL processed.'),
+        ('FR-18', S, 'If a URL fails, system logs the error in plain English and continues processing remaining URLs.'),
+        ('FR-19', S, 'All activity logged to logs/auto_count.log with timestamps and severity levels.'),
+        ('FR-20', C, 'System compares current cycle performance against previous cycle.'),
     ],
     [0.8, 0.8, 5.9]
 )
@@ -388,8 +398,10 @@ make_table(doc,
         ('NFR-04', 'Data Integrity', 'System must never overwrite existing data in columns A, D, E, G if already filled.'),
         ('NFR-05', 'Reliability', 'If one URL fails, system must continue processing all remaining URLs.'),
         ('NFR-06', 'Security', 'API keys stored in .env file only. Never logged or printed. .env excluded from git.'),
-        ('NFR-07', 'Testability', 'lark_writer.py must have pytest tests proving B/C/F/H writes raise exceptions.'),
-        ('NFR-08', 'Compatibility', 'System runs on Python 3.11+ on macOS.'),
+        ('NFR-07', 'Testability', '283 automated pytest tests across 6 test files — positive, negative, security, performance, UI/UX, and stress cases. All must pass (no real network calls).'),
+        ('NFR-08', 'Compatibility', 'System runs on Python 3.9+ on macOS.'),
+        ('NFR-09', 'Observability', 'All activity logged to logs/auto_count.log with timestamps. Errors shown in plain English, not technical jargon.'),
+        ('NFR-10', 'Resilience', 'Lark API writes retried up to 3 times on failure. Startup validates all required .env vars before any work begins.'),
     ],
     [0.9, 1.6, 5.0]
 )
@@ -465,8 +477,8 @@ make_table(doc,
         ('View count accuracy', '99% match with what is shown on the video page'),
         ('Caption accuracy', 'Correct caption with zero hashtags remaining'),
         ('Platforms supported', 'All 7: Instagram, TikTok, Facebook, YouTube, X, RedNote, Threads'),
-        ('pytest tests', 'All green — B/C/F/H write tests must pass'),
-        ('Trigger method', 'python run.py — single command, no UI needed'),
+        ('pytest tests', 'All 283 tests green across 6 test files'),
+        ('Trigger method', 'python watcher.py — runs in background, checks every 5 minutes'),
     ],
     [3.5, 4.0]
 )
@@ -510,7 +522,7 @@ make_table(doc,
 doc.add_paragraph()
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-run = p.add_run('— End of Document — Version 4.0 —')
+run = p.add_run('— End of Document — Version 5.0 —')
 run.italic = True
 run.font.size = Pt(9)
 run.font.color.rgb = RGBColor(*GREY)
