@@ -19,7 +19,7 @@ from src.friendly_errors import make_friendly
 
 log = get_logger("watcher")
 
-CHECK_INTERVAL = 300  # seconds (5 minutes)
+CHECK_INTERVAL = 180  # seconds (3 minutes)
 
 # ── Required environment variables ────────────────────────────────────────
 _REQUIRED_ENV_VARS = [
