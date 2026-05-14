@@ -147,6 +147,11 @@ async def _get_instagram_data(page, reel_url: str):
     # Getting the count here (from the actual reel URL) means we always get
     # the number for the reel the user pasted, not whatever thumbnail the grid
     # selector happens to find.
+    # Take a screenshot of the reel page immediately — used as the OCR
+    # fallback for view count. This is always from the URL the user pasted,
+    # so it can never refer to the wrong reel.
+    reel_page_screenshot = await page.screenshot(full_page=False)
+
     dom_view_count = None
     try:
         raw_vc = await page.evaluate("""
@@ -201,7 +206,10 @@ async def _get_instagram_data(page, reel_url: str):
         }
     """, list(BLOCKED))
 
-    thumbnail_screenshot = None
+    # The reel page screenshot is always used for view count OCR — it is
+    # guaranteed to correspond to the URL the user pasted, so it can never
+    # return the view count of a different reel.
+    thumbnail_screenshot = reel_page_screenshot
     post_screenshot = None
     dom_date = None
 
@@ -236,61 +244,6 @@ async def _get_instagram_data(page, reel_url: str):
 
         if found_reel:
             log.info("Instagram: found grid thumbnail for %s", shortcode)
-
-            # Try DOM span text inside just the thumbnail element (no parent search)
-            if dom_view_count is None:
-                try:
-                    raw_grid_vc = await page.evaluate(f"""
-                        () => {{
-                            const el = {find_js};
-                            if (!el) return null;
-                            // aria-label on the element or its children
-                            for (const e of [el, ...el.querySelectorAll('[aria-label]')]) {{
-                                const label = (e.getAttribute('aria-label') || '').toLowerCase();
-                                if (label.includes('play') || label.includes('view')) {{
-                                    const m = label.match(/([\\d][\\d,]*)/);
-                                    if (m) return m[1];
-                                }}
-                            }}
-                            // Span text inside the <a> element only (no parent bleed)
-                            for (const span of el.querySelectorAll('span')) {{
-                                const text = span.textContent.trim();
-                                if (/^[\\d.]+[KkMm]$/.test(text)) return text;
-                                if (/^\\d{{4,}}$/.test(text)) return text;
-                            }}
-                            return null;
-                        }}
-                    """)
-                    dom_view_count = _parse_count_text(raw_grid_vc)
-                    if dom_view_count is not None:
-                        log.info("Instagram: grid DOM view count = %d (raw: %s)",
-                                 dom_view_count, raw_grid_vc)
-                except Exception as exc:
-                    log.debug("Instagram: grid DOM view count failed: %s", exc)
-
-            # Crop screenshot of the target thumbnail (OCR fallback for view count)
-            bbox = await page.evaluate(f"""
-                () => {{
-                    const el = {find_js};
-                    if (!el) return null;
-                    const r = el.getBoundingClientRect();
-                    return {{x: r.x, y: r.y, width: r.width, height: r.height}};
-                }}
-            """)
-            if bbox and bbox.get('width', 0) > 10:
-                pad = 8
-                clip = {
-                    'x': max(0, int(bbox['x']) - pad),
-                    'y': max(0, int(bbox['y']) - pad),
-                    'width': int(bbox['width']) + pad * 2,
-                    'height': int(bbox['height']) + pad * 2,
-                }
-                thumbnail_screenshot = await page.screenshot(clip=clip)
-                log.info("Instagram: cropped thumbnail (%dx%d px)",
-                         clip['width'], clip['height'])
-            else:
-                thumbnail_screenshot = await page.screenshot(full_page=False)
-                log.debug("Instagram: bbox unavailable — full grid screenshot")
 
             # ── Step 3: click thumbnail → split view (full caption on right) ──
             log.info("Instagram: clicking thumbnail to open split post view")
@@ -329,13 +282,8 @@ async def _get_instagram_data(page, reel_url: str):
             else:
                 log.warning("Instagram: could not click thumbnail")
         else:
-            log.warning("Instagram: reel %s not found in 15 scrolls — "
-                        "falling back to top of grid", shortcode)
-            await page.evaluate("window.scrollTo(0, 0)")
-            await page.wait_for_timeout(800)
-            await page.evaluate("window.scrollBy(0, 500)")
-            await page.wait_for_timeout(1_000)
-            thumbnail_screenshot = await page.screenshot(full_page=False)
+            log.warning("Instagram: reel %s not found in 15 scrolls", shortcode)
+            # thumbnail_screenshot already holds the reel page screenshot — keep it
 
     # Fallback: split-view click didn't work → use direct reel page
     if post_screenshot is None:

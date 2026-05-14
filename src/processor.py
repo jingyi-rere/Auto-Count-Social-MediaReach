@@ -8,7 +8,7 @@ from src.lark_reader    import get_new_rows, get_dated_rows_for_platforms
 from src.lark_writer    import write_row
 from src.metadata_reader import get_metadata
 from src.browser_reader  import get_screenshot
-from src.vision_extract  import extract_from_screenshot, GRID_PROMPT
+from src.vision_extract  import extract_from_screenshot
 from src.logger          import get_logger
 
 log = get_logger("processor")
@@ -144,22 +144,22 @@ def process_all() -> list:
                           dom_date, dom_vc)
 
                 if thumb_ss is not None:
-                    # Instagram: split-view screenshot → caption
-                    #            DOM <time> → date (relative text parsed too)
-                    #            JSON-LD/meta or DOM span → view count (OCR fallback)
+                    # Instagram: split-view screenshot → caption + date
+                    #            reel page screenshot (thumb_ss) → view count OCR fallback
+                    #            DOM <time> → date; script data → view count (best sources)
                     log.debug("Instagram: extracting caption from split-view screenshot")
                     reel_data = extract_from_screenshot(main_ss)
-                    log.debug("Instagram: extracting view count from thumbnail (OCR fallback)")
-                    grid_data = extract_from_screenshot(thumb_ss, prompt=GRID_PROMPT)
+                    log.debug("Instagram: extracting view count from reel page screenshot (OCR fallback)")
+                    reel_page_data = extract_from_screenshot(thumb_ss)
                     data = {
                         "posted_date": dom_date or reel_data["posted_date"],
                         "caption":     reel_data["caption"],
                         "view_count":  (dom_vc
-                                        or grid_data["view_count"]
+                                        or reel_page_data["view_count"]
                                         or reel_data["view_count"]),
                     }
-                    log.debug("Instagram — dom_date=%s dom_vc=%s ocr_vc=%s caption=%r",
-                              dom_date, dom_vc, grid_data["view_count"],
+                    log.debug("Instagram — dom_date=%s dom_vc=%s reel_page_vc=%s caption=%r",
+                              dom_date, dom_vc, reel_page_data["view_count"],
                               data["caption"][:40])
                 else:
                     # RedNote / other vision platforms — single screenshot

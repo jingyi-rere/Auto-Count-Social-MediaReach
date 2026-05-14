@@ -96,26 +96,26 @@ class TestProcessAll:
         )
 
     def test_instagram_uses_both_screenshots(self, monkeypatch):
-        """Instagram should call get_screenshot and merge reel+grid data."""
+        """Instagram should call get_screenshot and merge split-view + reel-page data."""
         from src import processor
 
         monkeypatch.setattr(processor, "get_new_rows", lambda: [
             ("rec_ig1", "https://www.instagram.com/reel/DUiVAXaD2Y1/")
         ])
 
-        fake_reel_ss = b"reel_bytes"
-        fake_grid_ss = b"grid_bytes"
+        fake_reel_ss = b"reel_bytes"     # main_ss  → split-view screenshot
+        fake_reel_page_ss = b"reel_page" # thumb_ss → reel page screenshot
         monkeypatch.setattr(processor, "get_screenshot",
-                            MagicMock(return_value=(fake_reel_ss, fake_grid_ss, None, None)))
+                            MagicMock(return_value=(fake_reel_ss, fake_reel_page_ss, None, None)))
 
-        reel_data = {"posted_date": "2024-03-15", "caption": "Good caption", "view_count": None}
-        grid_data = {"posted_date": None, "caption": "No caption", "view_count": 132000}
+        split_data = {"posted_date": "2024-03-15", "caption": "Good caption", "view_count": None}
+        reel_page_data = {"posted_date": None, "caption": "No caption", "view_count": 21600}
 
         def mock_extract(ss, prompt=None):
-            from src.vision_extract import GRID_PROMPT
-            if prompt == GRID_PROMPT:
-                return grid_data
-            return reel_data
+            # Both calls use default prompt; distinguish by screenshot bytes
+            if ss == fake_reel_page_ss:
+                return reel_page_data
+            return split_data
 
         monkeypatch.setattr(processor, "extract_from_screenshot", mock_extract)
         mock_write = MagicMock()
@@ -124,12 +124,12 @@ class TestProcessAll:
 
         processor.process_all()
 
-        # write_row should use caption/date from reel, view_count from grid
+        # write_row should use caption/date from split view, view_count from reel page
         mock_write.assert_called_once_with(
             record_id="rec_ig1",
             posted_date="2024-03-15",
             caption="Good caption",
-            view_count=132000,
+            view_count=21600,
         )
 
     def test_no_new_rows_returns_empty(self, monkeypatch):

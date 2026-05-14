@@ -436,12 +436,15 @@ class TestPositiveProcessAll:
         monkeypatch.setattr(processor, "get_new_rows", lambda: [
             ("rec1", "https://www.instagram.com/reel/abc/")
         ])
+        fake_split_ss = b"split_view"
+        fake_reel_page_ss = b"reel_page"
         monkeypatch.setattr(processor, "get_screenshot",
-                            MagicMock(return_value=(b"reel", b"grid", None, None)))
+                            MagicMock(return_value=(fake_split_ss, fake_reel_page_ss, None, None)))
 
         def mock_extract(ss, prompt=None):
-            if prompt == GRID_PROMPT:
-                return {"posted_date": None, "caption": "No caption", "view_count": 132000}
+            # thumb_ss (reel page screenshot) → view count; main_ss → caption/date
+            if ss == fake_reel_page_ss:
+                return {"posted_date": None, "caption": "No caption", "view_count": 21600}
             return {"posted_date": "2024-03-15", "caption": "My reel caption", "view_count": None}
 
         monkeypatch.setattr(processor, "extract_from_screenshot", mock_extract)
@@ -450,8 +453,8 @@ class TestPositiveProcessAll:
         monkeypatch.setattr(processor, "get_metadata", MagicMock())
 
         results = processor.process_all()
-        assert results[0]["data"]["caption"] == "My reel caption"   # from reel page
-        assert results[0]["data"]["view_count"] == 132000            # from grid
+        assert results[0]["data"]["caption"] == "My reel caption"   # from split view
+        assert results[0]["data"]["view_count"] == 21600             # from reel page
 
     def test_no_rows_returns_empty_list(self, monkeypatch):
         monkeypatch.setattr(processor, "get_new_rows", lambda: [])

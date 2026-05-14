@@ -31,11 +31,11 @@ Extract exactly these 3 pieces of information:
    - Strip whitespace. If nothing remains, return "No caption".
 
 3. view_count — Total number of views/plays as a plain integer.
-   - Look for: a number near a play button ▶, eye icon 👁, or the word "views", "plays", "次播放".
-   - On Instagram: look for a number near the heart/like area or below the video.
+   - Look for: a number near a play button ▶, eye icon 👁, or the word "views", "plays", "次播放", "plays".
+   - On Instagram reel page: look for text like "X plays" or "X views" shown below or beside the video. Also check any number overlaid on the video player in the bottom-left corner.
    - On TikTok: look for a number at the top left of the video or below.
    - On RedNote: look for 👁 eye icon with a number.
-   - Convert shorthand: 1.2K → 1200, 3.4M → 3400000, 10.3K → 10300.
+   - Convert shorthand: 1.2K → 1200, 3.4M → 3400000, 10.3K → 10300, 21.6K → 21600.
    - Return null if not visible.
 
 Respond ONLY with valid JSON — no explanation, no markdown:
