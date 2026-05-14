@@ -437,7 +437,7 @@ class TestPositiveProcessAll:
             ("rec1", "https://www.instagram.com/reel/abc/")
         ])
         monkeypatch.setattr(processor, "get_screenshot",
-                            MagicMock(return_value=(b"reel", b"grid", None)))
+                            MagicMock(return_value=(b"reel", b"grid", None, None)))
 
         def mock_extract(ss, prompt=None):
             if prompt == GRID_PROMPT:

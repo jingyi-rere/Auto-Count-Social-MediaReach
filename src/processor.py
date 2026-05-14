@@ -50,25 +50,30 @@ def process_all() -> list:
                 data = get_metadata(url)
             else:
                 log.debug("Using Firefox + Vision for: %s", url)
-                main_ss, grid_ss, dom_date = get_screenshot(url)
-                log.debug("Screenshots taken — reel=%d bytes, grid=%s bytes",
-                          len(main_ss), len(grid_ss) if grid_ss else "N/A")
+                main_ss, thumb_ss, dom_date, dom_vc = get_screenshot(url)
+                log.debug("Screenshots — main=%d bytes, thumb=%s bytes, dom_date=%s, dom_vc=%s",
+                          len(main_ss), len(thumb_ss) if thumb_ss else "N/A",
+                          dom_date, dom_vc)
 
-                if grid_ss is not None:
-                    # Instagram: reel page → caption; grid page → view count;
-                    # dom_date → posted date (extracted directly from <time> element)
-                    log.debug("Instagram: extracting caption from reel page")
+                if thumb_ss is not None:
+                    # Instagram two-source extraction:
+                    # - caption: from split-view screenshot (main_ss), right panel
+                    # - date: from DOM <time> element (dom_date), relative if needed
+                    # - view count: DOM span text (dom_vc) is primary; OCR is fallback
+                    log.debug("Instagram: extracting caption from split-view screenshot")
                     reel_data = extract_from_screenshot(main_ss)
-                    log.debug("Instagram: extracting view count from grid page")
-                    grid_data = extract_from_screenshot(grid_ss, prompt=GRID_PROMPT)
+                    log.debug("Instagram: extracting view count from thumbnail (OCR fallback)")
+                    grid_data = extract_from_screenshot(thumb_ss, prompt=GRID_PROMPT)
                     data = {
                         "posted_date": dom_date or reel_data["posted_date"],
                         "caption":     reel_data["caption"],
-                        "view_count":  grid_data["view_count"] or reel_data["view_count"],
+                        "view_count":  (dom_vc
+                                        or grid_data["view_count"]
+                                        or reel_data["view_count"]),
                     }
-                    log.debug("Instagram merge — dom_date=%s vision_date=%s caption=%r views=%s",
-                              dom_date, reel_data["posted_date"],
-                              data["caption"][:40], data["view_count"])
+                    log.debug("Instagram — dom_date=%s dom_vc=%s ocr_vc=%s caption=%r",
+                              dom_date, dom_vc, grid_data["view_count"],
+                              data["caption"][:40])
                 else:
                     # RedNote / other vision platforms — single screenshot
                     data = extract_from_screenshot(main_ss)
