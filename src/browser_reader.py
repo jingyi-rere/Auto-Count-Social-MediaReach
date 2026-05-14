@@ -10,7 +10,9 @@ Firefox is completely separate from Chrome — Chrome never needs to close.
 Login sessions stored in ~/.cache/auto-count/firefox-profile (login_once.py).
 """
 import asyncio
+import re as _re
 from pathlib import Path
+from typing import Optional
 from playwright.async_api import async_playwright
 from src.logger import get_logger
 
@@ -29,10 +31,6 @@ async def _screenshot_url(page, url: str) -> bytes:
     return await page.screenshot(full_page=False)
 
 
-import re as _re
-from typing import Optional
-
-
 def _parse_ig_date(datetime_str: Optional[str]) -> Optional[str]:
     """Extract YYYY-MM-DD from an ISO 8601 datetime string (or return None)."""
     if not datetime_str:
@@ -43,116 +41,59 @@ def _parse_ig_date(datetime_str: Optional[str]) -> Optional[str]:
 
 async def _get_instagram_screenshots(page, reel_url: str):
     """
-    Returns (reel_screenshot, grid_screenshot, shortcode, dom_date).
-    reel_screenshot — individual reel page (caption)
-    grid_screenshot — profile reels grid (view counts visible)
-    dom_date        — YYYY-MM-DD extracted from DOM <time>, or None
+    Returns (post_screenshot, thumbnail_screenshot, shortcode, dom_date).
+
+    Flow:
+      1. Load reel page briefly to extract shortcode + author profile URL.
+      2. Navigate to profile reels grid, find target thumbnail, crop it
+         (gives Claude Vision exactly one cell for the view count).
+      3. Click the thumbnail — Instagram opens the split view
+         (video left, caption fully visible on right — no 'more' needed).
+      4. Extract date from DOM <time>, screenshot the split view for caption.
     """
-    # 1. Load the individual reel page
+    # ── Step 1: load reel page to get shortcode + author profile URL ──────────
     log.info("Instagram: loading reel page %s", reel_url[:80])
     await page.goto(reel_url, wait_until="domcontentloaded", timeout=45_000)
-    await page.wait_for_timeout(4_000)
+    await page.wait_for_timeout(3_000)
     await page.keyboard.press("Escape")
     await page.wait_for_timeout(500)
 
-    # Extract date from DOM <time datetime="..."> — far more reliable than vision.
-    # Use wait_for_selector because Instagram renders <time> via React after JS loads.
-    try:
-        await page.wait_for_selector('time[datetime]', timeout=6_000)
-        raw_date = await page.evaluate("""
-            () => {
-                const t = document.querySelector('time[datetime]');
-                return t ? t.getAttribute('datetime') : null;
-            }
-        """)
-        dom_date = _parse_ig_date(raw_date)
-        log.debug("Instagram: DOM date = %s (raw: %s)", dom_date, raw_date)
-    except Exception as exc:
-        log.debug("Instagram: no <time datetime> found: %s", exc)
-        dom_date = None
-
-    # Expand collapsed caption (Instagram truncates long captions with "...more").
-    # Search spans, divs, and role="button" elements — Instagram uses different
-    # element types in different app versions.
-    try:
-        clicked = await page.evaluate("""
-            () => {
-                const candidates = Array.from(document.querySelectorAll(
-                    'span, div[role="button"], [tabindex="0"], button'
-                ));
-                for (const el of candidates) {
-                    if (el.textContent.trim() === 'more' && el.offsetParent !== null) {
-                        el.click();
-                        return true;
-                    }
-                }
-                return false;
-            }
-        """)
-        if clicked:
-            await page.wait_for_timeout(800)
-            log.debug("Instagram: expanded caption via 'more' button")
-        else:
-            log.debug("Instagram: no 'more' button found — caption shown in full or no caption")
-    except Exception as exc:
-        log.debug("Instagram: 'more' button click failed: %s", exc)
-
-    reel_screenshot = await page.screenshot(full_page=False)
-    log.debug("Reel page screenshot taken (%d bytes)", len(reel_screenshot))
-
-    # 2. Extract the shortcode and the profile reels grid URL
-    # Instagram sometimes redirects /reel/ → /reels/ so handle both
     sc_match = _re.search(r"/reel(?:s)?/([^/?#]+)", reel_url)
     shortcode = sc_match.group(1) if sc_match else reel_url.rstrip("/").split("/")[-1]
 
-    # SECURITY: Validate shortcode contains only safe characters before it is
-    # interpolated into page.evaluate() JS strings.  Instagram shortcodes are
-    # always base-62 + underscore + hyphen.  Anything else is suspicious and
-    # we bail out of the grid lookup (but still return the reel screenshot).
+    # SECURITY: validate shortcode before interpolating into JS strings
     if not _re.fullmatch(r"[A-Za-z0-9_\-]+", shortcode):
-        log.error(
-            "Instagram: shortcode '%s' contains unsafe characters — "
-            "skipping grid screenshot to prevent JS injection.",
-            shortcode,
-        )
-        return reel_screenshot, None, shortcode, dom_date
+        log.error("Instagram: unsafe shortcode '%s' — aborting", shortcode)
+        return await page.screenshot(full_page=False), None, shortcode, None
 
-    # The author's link on the page looks like:
-    #   https://www.instagram.com/ricebowlmy/reels/
-    # Find the first such link that belongs to the content creator (not the
-    # logged-in user — the logged-in user's link ends with just /username/).
     BLOCKED = {"reel", "reels", "explore", "accounts", "direct", "stories",
                "audio", "p", "tv", ""}
     profile_reels_url = await page.evaluate("""
         (blocked) => {
             const links = Array.from(document.querySelectorAll('a[href]'));
             for (const a of links) {
-                // Match  instagram.com/<username>/reels/  (author link)
                 const m = a.href.match(/instagram\\.com\\/([a-zA-Z0-9._]+)\\/reels\\//);
-                if (m && !blocked.includes(m[1])) {
-                    return a.href.split('?')[0];  // strip query params
-                }
+                if (m && !blocked.includes(m[1])) return a.href.split('?')[0];
             }
             return null;
         }
     """, list(BLOCKED))
 
-    grid_screenshot = None
-    if profile_reels_url:
+    thumbnail_screenshot = None
+    post_screenshot = None
+    dom_date = None
+
+    if not profile_reels_url:
+        log.warning("Instagram: could not find profile reels URL")
+    else:
+        # ── Step 2: navigate to profile reels grid ────────────────────────────
         log.info("Instagram: navigating to profile grid %s", profile_reels_url)
-        # 3. Navigate to profile reels grid
-        await page.goto(
-            profile_reels_url,
-            wait_until="domcontentloaded",
-            timeout=45_000,
-        )
+        await page.goto(profile_reels_url, wait_until="domcontentloaded", timeout=45_000)
         await page.wait_for_timeout(4_000)
         await page.keyboard.press("Escape")
         await page.wait_for_timeout(500)
 
-        # Scroll until we find the specific reel shortcode link (handle /reel/ and /reels/)
-        # For recent posts (same week) this usually takes 0-3 scrolls.
-        # Max 15 scrolls covers ~60 reels — roughly 1-2 months of weekly posts.
+        # Scroll until the target thumbnail link appears (max ~60 reels, ~2 months)
         found_reel = False
         for _ in range(15):
             found = await page.evaluate(f"""
@@ -170,19 +111,16 @@ async def _get_instagram_screenshots(page, reel_url: str):
                         if (el) el.scrollIntoView({{block: 'center'}});
                     }}
                 """)
-                await page.wait_for_timeout(1_500)
+                await page.wait_for_timeout(1_000)
                 break
             await page.evaluate("window.scrollBy(0, 700)")
             await page.wait_for_timeout(800)
 
         if found_reel:
-            log.info("Instagram: found reel %s in grid — centred for screenshot", shortcode)
-        else:
-            log.warning("Instagram: reel %s not found in first 15 scrolls — "
-                        "using top of grid as fallback", shortcode)
-        if found_reel:
-            # Crop screenshot to just the target thumbnail — avoids Claude Vision
-            # reading a neighbouring cell's count.
+            log.info("Instagram: found reel %s in grid", shortcode)
+
+            # Crop screenshot to just the target thumbnail for view count —
+            # sending Claude Vision one cell makes it impossible to read the wrong one
             bbox = await page.evaluate(f"""
                 () => {{
                     const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
@@ -200,32 +138,72 @@ async def _get_instagram_screenshots(page, reel_url: str):
                     'width': int(bbox['width']) + pad * 2,
                     'height': int(bbox['height']) + pad * 2,
                 }
-                grid_screenshot = await page.screenshot(clip=clip)
-                log.info("Instagram: cropped thumbnail screenshot (%dx%d px)",
+                thumbnail_screenshot = await page.screenshot(clip=clip)
+                log.info("Instagram: cropped thumbnail (%dx%d px)",
                          clip['width'], clip['height'])
             else:
-                grid_screenshot = await page.screenshot(full_page=False)
-                log.debug("Instagram: bbox not available — full grid screenshot")
+                thumbnail_screenshot = await page.screenshot(full_page=False)
+                log.debug("Instagram: bbox unavailable — full grid screenshot")
+
+            # ── Step 3: click thumbnail → split view (caption fully visible) ──
+            # In the split view the caption appears in the right panel in full,
+            # so no need to click any 'more' button.
+            log.info("Instagram: clicking thumbnail to open split post view")
+            clicked = await page.evaluate(f"""
+                () => {{
+                    const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
+                          || document.querySelector('a[href*="/reels/{shortcode}/"]');
+                    if (el) {{ (el.querySelector('img') || el).click(); return true; }}
+                    return false;
+                }}
+            """)
+            if clicked:
+                await page.wait_for_timeout(3_000)
+
+                # ── Step 4: extract date from DOM + screenshot split view ──────
+                try:
+                    await page.wait_for_selector('time[datetime]', timeout=5_000)
+                    raw_date = await page.evaluate("""
+                        () => {
+                            const t = document.querySelector('time[datetime]');
+                            return t ? t.getAttribute('datetime') : null;
+                        }
+                    """)
+                    dom_date = _parse_ig_date(raw_date)
+                    log.debug("Instagram: DOM date = %s (raw: %s)", dom_date, raw_date)
+                except Exception as exc:
+                    log.debug("Instagram: no <time datetime> in split view: %s", exc)
+
+                post_screenshot = await page.screenshot(full_page=False)
+                log.debug("Instagram: split-view screenshot (%d bytes)", len(post_screenshot))
+            else:
+                log.warning("Instagram: could not click thumbnail")
         else:
-            # Reel is older than what's in the first ~60 posts — use top of grid
+            log.warning("Instagram: reel %s not found in first 15 scrolls — "
+                        "falling back to top of grid", shortcode)
             await page.evaluate("window.scrollTo(0, 0)")
             await page.wait_for_timeout(800)
             await page.evaluate("window.scrollBy(0, 500)")
             await page.wait_for_timeout(1_000)
-            grid_screenshot = await page.screenshot(full_page=False)
-            log.debug("Grid screenshot taken (fallback, %d bytes)", len(grid_screenshot))
-    else:
-        log.warning("Instagram: could not find profile reels URL — no grid screenshot")
+            thumbnail_screenshot = await page.screenshot(full_page=False)
 
-    return reel_screenshot, grid_screenshot, shortcode, dom_date
+    # Fallback: if split-view click failed, use the original reel page
+    if post_screenshot is None:
+        log.info("Instagram: falling back to direct reel page screenshot")
+        await page.goto(reel_url, wait_until="domcontentloaded", timeout=45_000)
+        await page.wait_for_timeout(4_000)
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(500)
+        post_screenshot = await page.screenshot(full_page=False)
+
+    return post_screenshot, thumbnail_screenshot, shortcode, dom_date
 
 
 def _release_firefox_lock():
     """Remove the .parentlock file if no Playwright Firefox is running."""
     lock = FIREFOX_PROFILE_DIR / ".parentlock"
     if lock.exists():
-        # Only remove if no playwright firefox process is using this profile
-        import subprocess, sys
+        import subprocess
         result = subprocess.run(
             ["pgrep", "-f", f"ms-playwright.*firefox.*{FIREFOX_PROFILE_DIR}"],
             capture_output=True
@@ -235,7 +213,7 @@ def _release_firefox_lock():
 
 
 async def _take_screenshot(url: str):
-    """Returns (screenshot_bytes, extra) where extra is None or a grid screenshot for Instagram."""
+    """Returns (main_ss, thumbnail_ss_or_None, dom_date_or_None)."""
     _release_firefox_lock()
     async with async_playwright() as p:
         ctx = await p.firefox.launch_persistent_context(
@@ -247,8 +225,8 @@ async def _take_screenshot(url: str):
 
         try:
             if "instagram.com" in url:
-                reel_ss, grid_ss, shortcode, dom_date = await _get_instagram_screenshots(page, url)
-                return reel_ss, grid_ss, dom_date
+                post_ss, thumb_ss, shortcode, dom_date = await _get_instagram_screenshots(page, url)
+                return post_ss, thumb_ss, dom_date
             else:
                 ss = await _screenshot_url(page, url)
                 return ss, None, None

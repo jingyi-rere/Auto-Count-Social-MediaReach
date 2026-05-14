@@ -25,7 +25,7 @@ Extract exactly these 3 pieces of information:
    - Return null if not visible anywhere.
 
 2. caption — The video title, caption, or description text.
-   - On Instagram reels: look for text in the bottom-left corner of the screen, BELOW the video player, next to the profile name. It often ends with "... more".
+   - On Instagram: look for text in the RIGHT panel next to the video (username followed by caption text). It is fully visible — do not look for a 'more' button.
    - REMOVE every hashtag (words starting with #, in any language).
    - Do NOT use text overlaid on the video itself (burnt-in subtitles/titles).
    - Strip whitespace. If nothing remains, return "No caption".
