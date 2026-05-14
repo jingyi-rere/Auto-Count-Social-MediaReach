@@ -145,7 +145,7 @@ doc.add_paragraph()
 meta = doc.add_table(rows=5, cols=2)
 meta.alignment = WD_TABLE_ALIGNMENT.CENTER
 for i, (lbl, val) in enumerate([
-    ('Document Version:', '5.2'),
+    ('Document Version:', '5.3'),
     ('Date:', datetime.date.today().strftime('%d %B %Y')),
     ('Status:', 'Final'),
     ('Prepared By:', 'jingyi-rere'),
@@ -175,7 +175,8 @@ make_table(doc,
         ('4.0', '11 May 2026', 'jingyi-rere', 'Updated: Playwright + Claude Vision approach (no platform APIs), hard column rules, run.py trigger, write to A/D/E/G only'),
         ('5.0', '13 May 2026', 'jingyi-rere', 'Updated: watcher.py background daemon (every 5 min), yt-dlp for YouTube/TikTok, Firefox for Instagram/RedNote, 283 automated tests, structured logging, retry logic, startup validation, security hardening'),
         ('5.1', '13 May 2026', 'jingyi-rere', 'Added boss-required sections: specific pain with time measurements, why AI not just automation, quantified value (33 hrs/year), AC-01 to AC-10 acceptance criteria'),
-        ('5.2', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Feedback fixes: clarified Phase 1 vs Phase 2 platform scope, reconciled baseline metric (40 min/week), aligned AC-03 and NFR-02 accuracy thresholds'),
+        ('5.2', '13 May 2026', 'jingyi-rere', 'Feedback fixes: clarified Phase 1 vs Phase 2 platform scope, reconciled baseline metric (40 min/week), aligned AC-03 and NFR-02 accuracy thresholds'),
+        ('5.3', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Instagram view count fix: now extracted from reel page screenshot (taken before Escape key) — guarantees correct reel. Watcher interval reduced to 3 minutes. Grid navigation retained for caption/date only.'),
     ],
     [0.7, 1.5, 1.5, 3.8]
 )
@@ -191,7 +192,7 @@ add_body(doc, (
     'This is pure manual data entry — repetitive, error-prone, and done at the end of an already busy week. '
     '\n\n'
     'This system eliminates that 40 minutes. The user pastes video URLs into Lark Column F. '
-    'A background watcher detects new URLs within 5 minutes and fills in all data automatically: '
+    'A background watcher detects new URLs within 3 minutes and fills in all data automatically: '
     'posted date (Column A), caption with hashtags removed (Column D), content type (Column E), '
     'and view count (Column G). '
     '\n\n'
@@ -371,7 +372,7 @@ make_table(doc,
         ('Manual data entry keystrokes per week', '~400 keystrokes (4 fields x 10 videos)', '0', '100% eliminated'),
         ('Data entry error rate', 'Est. 5-10% (typos, missed tags, wrong row)', 'Target <2%', '60-80% fewer errors'),
         ('Platforms requiring manual login to check', '4 platforms opened separately', '0 manual logins needed', '100% eliminated'),
-        ('Time from video posted to data in Lark', 'End of week batch (up to 7 days delay)', 'Within 5 minutes of URL paste', 'Near real-time'),
+        ('Time from video posted to data in Lark', 'End of week batch (up to 7 days delay)', 'Within 3 minutes of URL paste', 'Near real-time'),
     ],
     [3.0, 1.8, 1.8, 1.4]
 )
@@ -390,7 +391,7 @@ for obj in [
     'Eliminate all manual data entry into Lark — system writes A, D, E, G with zero keystrokes from user.',
     'Achieve data accuracy of 98%+ — AI reads directly from screen, no transcription errors.',
     'Support all 4 active platforms: Instagram, YouTube, TikTok, RedNote.',
-    'Process new URLs within 5 minutes of being pasted — no batch end-of-week delay.',
+    'Process new URLs within 3 minutes of being pasted — no batch end-of-week delay.',
     'Run unattended — watcher.py runs in background, user does not need to trigger it per URL.',
 ]:
     add_bullet(doc, obj)
@@ -400,7 +401,7 @@ add_heading(doc, '7. User Stories', 1)
 make_table(doc,
     ['ID', 'User Story'],
     [
-        ('US-01', 'As a video content creator, I want to paste video URLs into Column F and have the system fill columns A, D, E, G automatically within 5 minutes — so I save the 40 minutes I currently spend on manual data entry every week.'),
+        ('US-01', 'As a video content creator, I want to paste video URLs into Column F and have the system fill columns A, D, E, G automatically within 3 minutes — so I save the 40 minutes I currently spend on manual data entry every week.'),
         ('US-02', 'As a user, I want Column A filled with the original video posted date so I do not have to look it up.'),
         ('US-03', 'As a user, I want Column D filled with the video caption with all hashtags removed so my sheet stays clean.'),
         ('US-04', 'As a user, I want Column E always set to "Content Casual" automatically without me selecting it.'),
@@ -447,7 +448,7 @@ make_table(doc,
     [
         ('1', 'User starts watcher once: python watcher.py', 'Terminal command'),
         ('2', 'User pastes video URLs into Column F of Lark Bitable', 'User action'),
-        ('3', 'Watcher checks Lark every 5 minutes — finds rows where Column F has URL but A/D/E/G are empty', 'watcher.py + lark_reader.py + Lark API'),
+        ('3', 'Watcher checks Lark every 3 minutes — finds rows where Column F has URL but A/D/E/G are empty', 'watcher.py + lark_reader.py + Lark API'),
         ('4a', 'YouTube / TikTok URLs: metadata extracted directly (no browser needed)', 'yt-dlp + Chrome cookies'),
         ('4b', 'Instagram / RedNote URLs: video opened in Firefox, screenshot taken', 'Playwright + persistent Firefox profile'),
         ('4c', 'Instagram: two screenshots — reel page (caption/date) + grid page (view count)', 'Firefox + Claude Vision (claude-haiku-4-5)'),
@@ -498,7 +499,7 @@ make_table(doc,
         ('FR-01', M, 'System reads Lark Bitable to find rows where Column F has a URL and columns A/D/E/G are empty.'),
         ('FR-02', M, 'System routes YouTube/TikTok URLs to yt-dlp for fast, exact metadata extraction (no browser).'),
         ('FR-03', M, 'System routes Instagram/RedNote URLs to Firefox + Claude Vision for screenshot-based extraction.'),
-        ('FR-04', M, 'For Instagram: system takes two screenshots — reel page (caption + date) and profile grid (view count).'),
+        ('FR-04', M, 'For Instagram: system takes two screenshots — reel page screenshot (view count, captured immediately before any navigation) and split-view screenshot (caption + date, from clicking the profile grid thumbnail).'),
         ('FR-05', M, 'System sends screenshots to Claude Haiku Vision (claude-haiku-4-5) to extract posted date, caption, view count.'),
         ('FR-06', M, 'System strips ALL hashtags from caption using Unicode-aware regex before writing to Column D.'),
         ('FR-07', M, 'System writes posted date to Column A only.'),
@@ -508,7 +509,7 @@ make_table(doc,
         ('FR-11', M, 'System NEVER writes to Columns B, C, F, or H. Any attempt raises an exception immediately.'),
         ('FR-12', M, 'System writes all fields for a row in ONE atomic Lark API call — prevents partial data if system crashes.'),
         ('FR-13', M, 'System writes into existing rows only — never appends new rows.'),
-        ('FR-14', M, 'System runs as a background watcher (watcher.py) — checks Lark every 5 minutes automatically.'),
+        ('FR-14', M, 'System runs as a background watcher (watcher.py) — checks Lark every 3 minutes automatically.'),
         ('FR-15', M, 'System validates all required .env variables on startup — shows clear error if any are missing.'),
         ('FR-16', M, 'System retries failed Lark writes up to 3 times with exponential back-off (2s, 4s, 8s).'),
         ('FR-17', S, 'System prints a run summary showing success/failure status for each URL processed.'),
@@ -524,7 +525,7 @@ add_heading(doc, '12. Non-Functional Requirements', 1)
 make_table(doc,
     ['ID', 'Category', 'Requirement'],
     [
-        ('NFR-01', 'Performance', 'Process up to 20 video URLs within 5 minutes.'),
+        ('NFR-01', 'Performance', 'Process up to 20 video URLs within 3 minutes.'),
         ('NFR-02', 'Accuracy', 'View counts must match what is shown on the video page within 5% variance (consistent with AC-03). Captions must have zero hashtags remaining after processing (AC-02). Overall field-fill accuracy: 95%+ of submitted URLs result in all 4 columns correctly populated (AC-01).'),
         ('NFR-03', 'Data Integrity', 'System must never write to Columns B, C, F, or H under any circumstance.'),
         ('NFR-04', 'Data Integrity', 'System must never overwrite existing data in columns A, D, E, G if already filled.'),
@@ -635,9 +636,9 @@ make_table(doc,
          'Run pytest test suite — test_lark_writer.py. All 283 automated tests must pass.',
          'PASS if all 283 pytest tests are green.'),
         ('AC-07',
-         'Time from pasting URL to data appearing in Lark is under 5 minutes.',
+         'Time from pasting URL to data appearing in Lark is under 3 minutes.',
          'Paste a YouTube URL. Start a timer. Check when Lark row is filled.',
-         'PASS if data appears within 5 minutes.'),
+         'PASS if data appears within 3 minutes.'),
         ('AC-08',
          'System processes a new URL without the user opening any platform manually.',
          'Paste a URL. Do not open Instagram, YouTube, TikTok, or RedNote. Data should appear automatically.',
