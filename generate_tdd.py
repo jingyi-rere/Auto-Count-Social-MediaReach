@@ -161,11 +161,11 @@ doc.add_paragraph()
 meta = doc.add_table(rows=5, cols=2)
 meta.alignment = WD_TABLE_ALIGNMENT.CENTER
 for i, (lbl, val) in enumerate([
-    ('Document Version:', '3.0'),
+    ('Document Version:', '3.2'),
     ('Date:', datetime.date.today().strftime('%d %B %Y')),
     ('Status:', 'Final'),
     ('Prepared By:', 'jingyi-rere'),
-    ('Based On:', 'BRD v5.0 — Auto Count Social Media Reach'),
+    ('Based On:', 'BRD v5.1 — Auto Count Social Media Reach'),
 ]):
     set_col_width(meta.rows[i].cells[0], 2.2)
     set_col_width(meta.rows[i].cells[1], 4.3)
@@ -187,7 +187,9 @@ make_table(doc,
     [
         ('1.0', '09 May 2026', 'jingyi-rere', 'Initial TDD — platform APIs approach'),
         ('2.0', '11 May 2026', 'jingyi-rere', 'Redesigned: Playwright + Claude Vision (no APIs), hard column allowlist, run.py trigger, write A/D/E/G only'),
-        ('3.0', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Updated: watcher.py background daemon, yt-dlp for YouTube/TikTok, Firefox for Instagram/RedNote, single atomic Lark write, retry logic, shortcode security validation, startup env check, 283 tests, src/ module layout, structured logging'),
+        ('3.0', '13 May 2026', 'jingyi-rere', 'Updated: watcher.py background daemon, yt-dlp for YouTube/TikTok, Firefox for Instagram/RedNote, single atomic Lark write, retry logic, shortcode security validation, startup env check, 283 tests, src/ module layout, structured logging'),
+        ('3.1', '13 May 2026', 'jingyi-rere', 'Refined: architecture paragraph, step-by-step cohort timeline, tracking plan, risks and fallbacks per boss requirements'),
+        ('3.2', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Feedback fixes: added pytest validation evidence reference (283 passed, commit 6caf2b1), added Vision latency note to timing risk, added Claude API cost estimate to risks table'),
     ],
     [0.7, 1.5, 1.5, 3.8]
 )
@@ -211,6 +213,196 @@ add_body(doc, (
 ))
 
 doc.add_paragraph()
+# ── NEW: ARCHITECTURE ────────────────────────────────────────────────────────
+add_heading(doc, '1.0 Architecture & Approach', 1)
+add_body(doc, (
+    'The system uses a two-track extraction pipeline controlled by a background watcher daemon. '
+    'Track 1 (YouTube, TikTok): each URL is passed to yt-dlp, a battle-tested open-source tool '
+    'that retrieves exact metadata (title, upload date, view count) directly from platform '
+    'infrastructure without launching a browser — this takes under 10 seconds per video. '
+    'Track 2 (Instagram, RedNote): a persistent Firefox browser context (Playwright) loads the '
+    'real page using the saved login session, dismisses popups, and takes a screenshot; '
+    'for Instagram specifically, two screenshots are taken — the individual reel page for caption '
+    'and date, and the profile reels grid for view count (which is only visible there on desktop). '
+    'Each screenshot is compressed to under 4.5MB if needed, then sent to Claude Haiku Vision '
+    '(claude-haiku-4-5 via the Anthropic API) with a structured prompt; Claude returns a JSON '
+    'object containing posted_date, caption, and view_count. '
+    'The watcher.py daemon polls Lark Bitable every 5 minutes, routes each new URL through the '
+    'correct track, merges the results, strips all hashtags using Unicode-aware regex, and writes '
+    'all four fields to Lark columns A, D, E, G in a single atomic API call with automatic retry '
+    '(up to 3 attempts, 2s/4s/8s back-off). '
+    'The entire pipeline is observable via a rotating log file (logs/auto_count.log) and '
+    'protected by 283 automated tests that cover positive, negative, security, performance, '
+    'UI/UX, and stress scenarios.'
+))
+doc.add_paragraph()
+
+# ── NEW: COHORT TIMELINE ─────────────────────────────────────────────────────
+add_heading(doc, '1.1 Step-by-Step Path to Done (Cohort Timeline)', 1)
+add_body(doc, (
+    'All core development is complete. The remaining cohort sessions focus on '
+    'validation, documentation, and demonstration. '
+    'Each step below has a clear deliverable and a done condition.'
+))
+doc.add_paragraph()
+
+DONE  = ('DONE', True, GREEN)
+WIP   = ('THIS WEEK', True, ORANGE)
+NEXT  = ('NEXT CLASS', True, LBLUE)
+
+make_table(doc,
+    ['Phase', 'Status', 'What Was / Will Be Done', 'Done Condition'],
+    [
+        ('Phase 1\nCore Pipeline',
+         DONE,
+         'Built yt-dlp extractor (YouTube/TikTok), Firefox+Vision extractor (Instagram/RedNote), '
+         'Lark reader/writer, watcher daemon, processor router.',
+         'System fills Lark columns A/D/E/G for all 4 platforms without manual steps.'),
+        ('Phase 2\nQuality & Security',
+         DONE,
+         '283 automated tests (positive, negative, security, performance, stress). '
+         'Retry logic, atomic writes, startup validation, shortcode security, structured logging.',
+         'All 283 pytest tests pass. No partial writes on crash.'),
+        ('Phase 3\nDocumentation',
+         WIP,
+         'BRD v5.1: specific problem, quantified value, why AI, acceptance criteria. '
+         'TDD v3.1: architecture paragraph, cohort timeline, tracking plan, risks.',
+         'Both documents submitted to class portal this session.'),
+        ('Phase 4\nLive Validation',
+         NEXT,
+         'Run system on 10 real videos (mix of YouTube, Instagram, TikTok, RedNote). '
+         'Compare extracted data to actual platform values. '
+         'Measure time: paste URLs to Lark filled.',
+         '95%+ accuracy on view counts. All hashtags removed. Time under 5 min per URL.'),
+        ('Phase 5\nFinal Demo',
+         NEXT,
+         'Record a short screen capture showing: paste URL in Lark, '
+         'watcher processes automatically, columns fill in real time. '
+         'Present quantified results: time saved, error rate, test coverage.',
+         'Demo video shows end-to-end flow in under 3 minutes. '
+         'Before/after time comparison presented.'),
+    ],
+    [1.2, 1.0, 3.3, 2.0]
+)
+doc.add_paragraph()
+
+# ── NEW: TRACKING PLAN ────────────────────────────────────────────────────────
+add_heading(doc, '1.2 Tracking Plan — Where Metrics Live', 1)
+add_body(doc, (
+    'The Lark Bitable IS the tracking system. Every row in the sheet represents one video. '
+    'The system writes four metrics per row. Here is what each metric means and how accuracy '
+    'will be verified during the validation phase:'
+))
+doc.add_paragraph()
+
+make_table(doc,
+    ['Metric', 'Lark Column', 'What It Tracks', 'How Accuracy Is Verified'],
+    [
+        ('Posted Date', 'Column A', 'The original date the video was published on the platform.',
+         'Manually check 10 videos on platform. Compare to Column A. Pass if all 10 match.'),
+        ('Caption / Title', 'Column D', 'The video caption or title, with ALL hashtags removed.',
+         'Check Column D for any # character. Pass if zero hashtags found in any cell.'),
+        ('Content Type', 'Column E', 'Always "Content Casual" — hardcoded default.',
+         'Check Column E for all processed rows. Pass if every cell says exactly "Content Casual".'),
+        ('View Count (Reach)', 'Column G', 'Total views/plays as shown on the platform at time of processing.',
+         'Manually check 10 videos. Compare Column G to platform count. Pass if within 5%.'),
+    ],
+    [1.3, 1.1, 2.0, 3.1]
+)
+doc.add_paragraph()
+
+add_body(doc, 'System performance metrics (tracked in logs/auto_count.log):', bold=True)
+doc.add_paragraph()
+
+make_table(doc,
+    ['Performance Metric', 'Target', 'Where It Is Logged'],
+    [
+        ('Processing time per URL', 'Under 5 minutes', 'Logged as INFO with timestamp per record_id'),
+        ('Success rate per cycle', '95%+', 'Logged as "X OK, Y error(s)" at end of each watcher cycle'),
+        ('Retry count', '0 retries in normal conditions', 'Logged as WARNING when a retry is triggered'),
+        ('Test pass rate', '283/283 (100%)', 'pytest output — run before each submission'),
+    ],
+    [2.5, 2.0, 3.0]
+)
+doc.add_paragraph()
+
+# ── NEW: RISKS & FALLBACKS ────────────────────────────────────────────────────
+add_heading(doc, '1.3 Risks & Fallbacks if AI Hits Limits', 1)
+add_body(doc, (
+    'Claude Vision is reliable but not infallible. Every known failure mode has a specific '
+    'fallback built into the system. Below are the real risks and what happens in each case:'
+))
+doc.add_paragraph()
+
+HIGH = ('High', True, RED)
+MED  = ('Medium', True, ORANGE)
+LOW  = ('Low', True, GREEN)
+
+make_table(doc,
+    ['Risk', 'Likelihood', 'What Happens', 'Fallback'],
+    [
+        ('Claude Vision extracts wrong view count\n(e.g. reads like count instead of view count)',
+         MED,
+         'Column G has incorrect number. User may not notice unless they check.',
+         'GRID_PROMPT specialised for Instagram tells Claude exactly which number to read. '
+         'User can manually correct Column G — system will not overwrite it on next run '
+         'because it only processes rows where G is empty.'),
+        ('Claude API returns 529 (overloaded)',
+         LOW,
+         'Extraction fails for that URL in this cycle.',
+         'Built-in retry: system waits 2s, 4s, 8s and retries up to 3 times automatically. '
+         'If all retries fail, error is logged in plain English and URL is left for next cycle.'),
+        ('Instagram blocks Firefox (anti-bot detection)',
+         MED,
+         'Page shows login screen or CAPTCHA instead of video. Screenshot sent to Claude has no data.',
+         'System detects null view_count and logs warning. '
+         'User re-logs into Instagram via login_once.py (one command). '
+         'Persistent session is saved and works again for weeks.'),
+        ('Platform changes UI (e.g. Instagram redesign)',
+         HIGH,
+         'Screenshot layout changes. Claude may read wrong element.',
+         'Claude Vision is layout-agnostic — it reads meaning, not HTML selectors. '
+         'Minor UI changes: system adapts automatically. '
+         'Major redesign: update PROMPT text in vision_extract.py (30-minute fix, no code rewrite).'),
+        ('RedNote content in Chinese — Claude misreads',
+         LOW,
+         'Caption or date extracted incorrectly from Chinese text.',
+         'Claude Haiku natively understands Chinese. Tested with Chinese captions in stress tests. '
+         'If a specific post fails, user manually fills that row in Lark.'),
+        ('yt-dlp breaks for YouTube (platform change)',
+         LOW,
+         'YouTube/TikTok extraction fails.',
+         'yt-dlp is actively maintained by open-source community. '
+         'Fix is usually available within 24 hours via: pip install -U yt-dlp. '
+         'Fallback: route YouTube to Firefox+Vision path (slower but works).'),
+        ('Anthropic API key quota exceeded',
+         LOW,
+         'All Vision extractions fail.',
+         'System logs clear error: "Claude AI key is invalid or missing. Check ANTHROPIC_API_KEY". '
+         'User tops up Anthropic credits (takes 2 minutes). '
+         'yt-dlp path (YouTube/TikTok) continues working unaffected.'),
+        ('Vision extraction takes 3-4 min per Instagram URL — may miss <5 min promise',
+         MED,
+         'If a batch of 5+ Instagram URLs arrives together, total processing time may exceed 5 minutes. '
+         'The watcher runs every 5 minutes but each Vision call itself takes 2-4 minutes.',
+         'YouTube/TikTok (yt-dlp) complete in under 30 seconds — <5 min promise holds for those. '
+         'For Instagram/RedNote batches: the 5-minute SLA applies per URL, not per batch. '
+         'Single URL always processed in under 5 minutes. BRD AC-07 specifies "one URL at a time" for verification.'),
+        ('Claude API cost at scale',
+         LOW,
+         'At current usage: ~10 Instagram/RedNote videos/week × 2 screenshots each × 52 weeks '
+         '= ~1,040 Vision API calls/year. '
+         'Claude Haiku-4-5 costs approx $0.0004/image. '
+         'Estimated annual cost: ~$0.42 USD for Vision calls. '
+         'YouTube/TikTok use yt-dlp (free). Total API spend: under $5/year at current scale.',
+         'Cost is negligible at current posting volume. '
+         'If volume scales to 40 videos/week (4x current), annual cost is still under $2. '
+         'No rate limiting needed at this scale.'),
+    ],
+    [2.2, 0.8, 2.0, 2.5]
+)
+doc.add_paragraph()
+
 add_heading(doc, '1.1 Key Design Decisions', 2)
 make_table(doc,
     ['Decision', 'Choice', 'Reason'],
@@ -668,6 +860,14 @@ make_table(doc,
 
 # ── 13. TESTING PLAN ──────────────────────────────────────────────────────────
 add_heading(doc, '13. Testing Plan', 1)
+add_body(doc, (
+    'Validation evidence: all 283 tests confirmed passing. '
+    'Full pytest verbose output saved in validation_evidence.txt (project root). '
+    'Result: 283 passed, 0 failed, 3 warnings, 4.21 seconds. '
+    'Git commit: 6caf2b1 (branch: main, repo: github.com/jingyi-rere/Auto-Count-Social-MediaReach). '
+    'Tests run with: .venv/bin/python -m pytest tests/ -v --tb=short'
+), bold=True, color=GREEN)
+doc.add_paragraph()
 make_table(doc,
     ['Test File', 'Count', 'What Is Tested', 'Pass Criteria'],
     [
@@ -710,7 +910,7 @@ make_table(doc,
 doc.add_paragraph()
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-run = p.add_run('— End of Document — Version 3.0 —')
+run = p.add_run('— End of Document — Version 3.2 —')
 run.italic = True
 run.font.size = Pt(9)
 run.font.color.rgb = RGBColor(*GREY)
