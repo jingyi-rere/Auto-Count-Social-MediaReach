@@ -116,23 +116,21 @@ async def _get_instagram_data(page, reel_url: str):
     Returns (post_screenshot, thumbnail_screenshot, shortcode, dom_date, dom_view_count).
 
     Flow:
-      1. Load reel page. Read page.url AFTER navigation (handles redirects).
-         Try JSON-LD / meta tags for view count on the reel page itself.
+      1. Load reel page. Immediately capture page.url + reel page screenshot
+         (BEFORE pressing Escape — Escape can navigate away from the reel).
+         Try script data / JSON-LD / meta tag for view count.
       2. Navigate to profile reels grid. Find the grid thumbnail <a> that
-         contains an <img> (not a nav link). Crop its screenshot. Try DOM
-         span text for view count.
-      3. Click the grid thumbnail — Instagram opens the split view with the
-         full caption visible in the right panel.
+         contains an <img> (not a nav link) and click it.
+      3. Instagram opens the split view with full caption in the right panel.
       4. Extract date from DOM <time> element; screenshot split view for caption.
     """
     # ── Step 1: load reel page ────────────────────────────────────────────────
     log.info("Instagram: loading reel page %s", reel_url[:80])
     await page.goto(reel_url, wait_until="domcontentloaded", timeout=45_000)
-    await page.wait_for_timeout(4_000)
-    await page.keyboard.press("Escape")
-    await page.wait_for_timeout(500)
 
-    # Use page.url after navigation — Instagram may redirect to a different shortcode
+    # Capture URL and screenshot IMMEDIATELY after page load — before pressing
+    # Escape. Escape can dismiss the reel viewer and navigate back to the profile
+    # grid, making page.url and any later screenshot refer to the wrong content.
     actual_url = page.url
     sc_match = (_re.search(r"/reel(?:s)?/([^/?#]+)", actual_url) or
                 _re.search(r"/reel(?:s)?/([^/?#]+)", reel_url))
@@ -143,14 +141,14 @@ async def _get_instagram_data(page, reel_url: str):
         log.error("Instagram: unsafe shortcode '%s' — aborting", shortcode)
         return await page.screenshot(full_page=False), None, shortcode, None, None
 
-    # Try view count from reel page — multiple sources, most reliable first.
-    # Getting the count here (from the actual reel URL) means we always get
-    # the number for the reel the user pasted, not whatever thumbnail the grid
-    # selector happens to find.
-    # Take a screenshot of the reel page immediately — used as the OCR
-    # fallback for view count. This is always from the URL the user pasted,
-    # so it can never refer to the wrong reel.
     reel_page_screenshot = await page.screenshot(full_page=False)
+    log.info("Instagram: reel page screenshot captured (%d bytes, before Escape)",
+             len(reel_page_screenshot))
+
+    # Wait for dynamic content to load, then dismiss any popup.
+    await page.wait_for_timeout(4_000)
+    await page.keyboard.press("Escape")
+    await page.wait_for_timeout(500)
 
     dom_view_count = None
     try:
