@@ -55,8 +55,10 @@ async def _get_instagram_screenshots(page, reel_url: str):
     await page.keyboard.press("Escape")
     await page.wait_for_timeout(500)
 
-    # Extract date from DOM <time datetime="..."> — far more reliable than vision
+    # Extract date from DOM <time datetime="..."> — far more reliable than vision.
+    # Use wait_for_selector because Instagram renders <time> via React after JS loads.
     try:
+        await page.wait_for_selector('time[datetime]', timeout=6_000)
         raw_date = await page.evaluate("""
             () => {
                 const t = document.querySelector('time[datetime]');
@@ -64,29 +66,34 @@ async def _get_instagram_screenshots(page, reel_url: str):
             }
         """)
         dom_date = _parse_ig_date(raw_date)
-        if dom_date:
-            log.debug("Instagram: DOM date = %s (raw: %s)", dom_date, raw_date)
-        else:
-            log.debug("Instagram: no <time datetime> found on reel page")
+        log.debug("Instagram: DOM date = %s (raw: %s)", dom_date, raw_date)
     except Exception as exc:
-        log.debug("Instagram: DOM date extraction failed: %s", exc)
+        log.debug("Instagram: no <time datetime> found: %s", exc)
         dom_date = None
 
-    # Expand collapsed caption (Instagram truncates with "...more")
+    # Expand collapsed caption (Instagram truncates long captions with "...more").
+    # Search spans, divs, and role="button" elements — Instagram uses different
+    # element types in different app versions.
     try:
         clicked = await page.evaluate("""
             () => {
-                const spans = Array.from(document.querySelectorAll('span'));
-                const btn = spans.find(
-                    s => s.textContent.trim() === 'more' && s.offsetParent !== null
-                );
-                if (btn) { btn.click(); return true; }
+                const candidates = Array.from(document.querySelectorAll(
+                    'span, div[role="button"], [tabindex="0"], button'
+                ));
+                for (const el of candidates) {
+                    if (el.textContent.trim() === 'more' && el.offsetParent !== null) {
+                        el.click();
+                        return true;
+                    }
+                }
                 return false;
             }
         """)
         if clicked:
-            await page.wait_for_timeout(600)
+            await page.wait_for_timeout(800)
             log.debug("Instagram: expanded caption via 'more' button")
+        else:
+            log.debug("Instagram: no 'more' button found — caption shown in full or no caption")
     except Exception as exc:
         log.debug("Instagram: 'more' button click failed: %s", exc)
 
@@ -156,18 +163,11 @@ async def _get_instagram_screenshots(page, reel_url: str):
             """)
             if found:
                 found_reel = True
-                # Scroll the matching thumbnail to centre and add a red border
-                # so Claude Vision can unambiguously identify which one is the target
                 await page.evaluate(f"""
                     () => {{
                         const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
                               || document.querySelector('a[href*="/reels/{shortcode}/"]');
-                        if (el) {{
-                            el.scrollIntoView({{block: 'center'}});
-                            el.style.outline = '6px solid red';
-                            el.style.outlineOffset = '3px';
-                            el.style.zIndex = '9999';
-                        }}
+                        if (el) el.scrollIntoView({{block: 'center'}});
                     }}
                 """)
                 await page.wait_for_timeout(1_500)
@@ -180,17 +180,40 @@ async def _get_instagram_screenshots(page, reel_url: str):
         else:
             log.warning("Instagram: reel %s not found in first 15 scrolls — "
                         "using top of grid as fallback", shortcode)
-        if not found_reel:
-            # Reel is older than what's in the first ~60 posts.
-            # Scroll to the reels grid section (skip profile header / highlights).
+        if found_reel:
+            # Crop screenshot to just the target thumbnail — avoids Claude Vision
+            # reading a neighbouring cell's count.
+            bbox = await page.evaluate(f"""
+                () => {{
+                    const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
+                          || document.querySelector('a[href*="/reels/{shortcode}/"]');
+                    if (!el) return null;
+                    const rect = el.getBoundingClientRect();
+                    return {{x: rect.x, y: rect.y, width: rect.width, height: rect.height}};
+                }}
+            """)
+            if bbox and bbox.get('width', 0) > 10:
+                pad = 8
+                clip = {
+                    'x': max(0, int(bbox['x']) - pad),
+                    'y': max(0, int(bbox['y']) - pad),
+                    'width': int(bbox['width']) + pad * 2,
+                    'height': int(bbox['height']) + pad * 2,
+                }
+                grid_screenshot = await page.screenshot(clip=clip)
+                log.info("Instagram: cropped thumbnail screenshot (%dx%d px)",
+                         clip['width'], clip['height'])
+            else:
+                grid_screenshot = await page.screenshot(full_page=False)
+                log.debug("Instagram: bbox not available — full grid screenshot")
+        else:
+            # Reel is older than what's in the first ~60 posts — use top of grid
             await page.evaluate("window.scrollTo(0, 0)")
             await page.wait_for_timeout(800)
-            # Scroll past profile bio / highlights to the grid thumbnails
             await page.evaluate("window.scrollBy(0, 500)")
             await page.wait_for_timeout(1_000)
-
-        grid_screenshot = await page.screenshot(full_page=False)
-        log.debug("Grid screenshot taken (%d bytes)", len(grid_screenshot))
+            grid_screenshot = await page.screenshot(full_page=False)
+            log.debug("Grid screenshot taken (fallback, %d bytes)", len(grid_screenshot))
     else:
         log.warning("Instagram: could not find profile reels URL — no grid screenshot")
 

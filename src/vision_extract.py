@@ -45,14 +45,12 @@ Respond ONLY with valid JSON — no explanation, no markdown:
 # Specialised prompt for Instagram profile reels grid screenshots.
 # The highlighted thumbnail is the target reel — read the play-count overlay on it.
 GRID_PROMPT = """\
-This is a screenshot of an Instagram profile's Reels grid.
+This is a screenshot of a single Instagram Reels thumbnail (cropped to show just one video cell).
 
-Your ONLY task: find the view/play count for the target reel.
-- The target thumbnail has a BRIGHT RED border/outline around it — read ONLY that thumbnail's play count.
-- If no red-bordered thumbnail is visible, read the count of the most centred thumbnail in the viewport.
-- Instagram shows a white ▶ play icon with a number overlaid on each thumbnail (e.g. 132K, 1.2M, 45K).
-- Convert shorthand: 132K → 132000, 1.2M → 1200000, 45.3K → 45300.
-- Return null only if there are no thumbnails at all or no numbers visible.
+Your ONLY task: read the view/play count shown on this thumbnail.
+- Look for a white ▶ play icon with a number overlaid (e.g. 21.6K, 132K, 1.2M).
+- Convert shorthand: 21.6K → 21600, 132K → 132000, 1.2M → 1200000.
+- Return null if no number is visible.
 
 Respond ONLY with valid JSON — no explanation, no markdown:
 {"posted_date": null, "caption": "No caption", "view_count": 12345}
