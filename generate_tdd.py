@@ -161,11 +161,11 @@ doc.add_paragraph()
 meta = doc.add_table(rows=5, cols=2)
 meta.alignment = WD_TABLE_ALIGNMENT.CENTER
 for i, (lbl, val) in enumerate([
-    ('Document Version:', '3.2'),
+    ('Document Version:', '3.3'),
     ('Date:', datetime.date.today().strftime('%d %B %Y')),
     ('Status:', 'Final'),
     ('Prepared By:', 'jingyi-rere'),
-    ('Based On:', 'BRD v5.1 — Auto Count Social Media Reach'),
+    ('Based On:', 'BRD v5.3 — Auto Count Social Media Reach'),
 ]):
     set_col_width(meta.rows[i].cells[0], 2.2)
     set_col_width(meta.rows[i].cells[1], 4.3)
@@ -189,7 +189,8 @@ make_table(doc,
         ('2.0', '11 May 2026', 'jingyi-rere', 'Redesigned: Playwright + Claude Vision (no APIs), hard column allowlist, run.py trigger, write A/D/E/G only'),
         ('3.0', '13 May 2026', 'jingyi-rere', 'Updated: watcher.py background daemon, yt-dlp for YouTube/TikTok, Firefox for Instagram/RedNote, single atomic Lark write, retry logic, shortcode security validation, startup env check, 283 tests, src/ module layout, structured logging'),
         ('3.1', '13 May 2026', 'jingyi-rere', 'Refined: architecture paragraph, step-by-step cohort timeline, tracking plan, risks and fallbacks per boss requirements'),
-        ('3.2', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Feedback fixes: added pytest validation evidence reference (283 passed, commit 6caf2b1), added Vision latency note to timing risk, added Claude API cost estimate to risks table'),
+        ('3.2', '13 May 2026', 'jingyi-rere', 'Feedback fixes: added pytest validation evidence reference (283 passed, commit 6caf2b1), added Vision latency note to timing risk, added Claude API cost estimate to risks table'),
+        ('3.3', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Updated architecture: Instagram view count now from reel page screenshot taken before Escape (not profile grid), watcher interval reduced to 3 minutes, corrected system flow diagram and key design decisions'),
     ],
     [0.7, 1.5, 1.5, 3.8]
 )
@@ -201,7 +202,7 @@ add_heading(doc, '1. System Overview', 1)
 add_body(doc, (
     'The Auto Count Social Media Reach system is a Python-based automation tool. '
     'The user pastes video URLs into Column F of their Lark Bitable, then runs python watcher.py once. '
-    'The watcher checks Lark every 5 minutes for new URLs and processes them automatically. '
+    'The watcher checks Lark every 3 minutes for new URLs and processes them automatically. '
     'Each URL is routed to the best extraction method: '
     'yt-dlp (fast, exact numbers, no browser) for YouTube and TikTok; '
     'Firefox + Claude Haiku Vision (claude-haiku-4-5) for Instagram and RedNote. '
@@ -227,7 +228,7 @@ add_body(doc, (
     'Each screenshot is compressed to under 4.5MB if needed, then sent to Claude Haiku Vision '
     '(claude-haiku-4-5 via the Anthropic API) with a structured prompt; Claude returns a JSON '
     'object containing posted_date, caption, and view_count. '
-    'The watcher.py daemon polls Lark Bitable every 5 minutes, routes each new URL through the '
+    'The watcher.py daemon polls Lark Bitable every 3 minutes, routes each new URL through the '
     'correct track, merges the results, strips all hashtags using Unicode-aware regex, and writes '
     'all four fields to Lark columns A, D, E, G in a single atomic API call with automatic retry '
     '(up to 3 attempts, 2s/4s/8s back-off). '
@@ -344,7 +345,7 @@ make_table(doc,
         ('Claude Vision extracts wrong view count\n(e.g. reads like count instead of view count)',
          MED,
          'Column G has incorrect number. User may not notice unless they check.',
-         'GRID_PROMPT specialised for Instagram tells Claude exactly which number to read. '
+         'Reel page screenshot is taken before Escape and before any navigation, so it always shows the correct reel. '
          'User can manually correct Column G — system will not overwrite it on next run '
          'because it only processes rows where G is empty.'),
         ('Claude API returns 529 (overloaded)',
@@ -384,7 +385,7 @@ make_table(doc,
         ('Vision extraction takes 3-4 min per Instagram URL — may miss <5 min promise',
          MED,
          'If a batch of 5+ Instagram URLs arrives together, total processing time may exceed 5 minutes. '
-         'The watcher runs every 5 minutes but each Vision call itself takes 2-4 minutes.',
+         'The watcher runs every 3 minutes but each Vision call itself takes 2-4 minutes.',
          'YouTube/TikTok (yt-dlp) complete in under 30 seconds — <5 min promise holds for those. '
          'For Instagram/RedNote batches: the 5-minute SLA applies per URL, not per batch. '
          'Single URL always processed in under 5 minutes. BRD AC-07 specifies "one URL at a time" for verification.'),
@@ -409,13 +410,13 @@ make_table(doc,
     [
         ('YouTube/TikTok extraction', 'yt-dlp (no browser)', 'Fast, exact numbers. Uses Chrome cookies for auth. No screenshots needed.'),
         ('Instagram/RedNote extraction', 'Firefox + Claude Haiku Vision (claude-haiku-4-5)', 'No API available. Firefox with saved login handles paywalls/popups.'),
-        ('Instagram view count', 'Two-screenshot: reel page + profile grid', 'Individual reel pages hide view counts on desktop. Profile grid always shows them.'),
+        ('Instagram view count', 'Reel page screenshot (before Escape) + split-view', 'Screenshot taken immediately after page load, before Escape key is pressed. Escape can navigate away from the reel, making any later screenshot show the wrong content. Reel page is always the URL the user pasted — can never show the wrong reel.'),
         ('Column safety', 'Hard allowlist raises ValueError for B/C/F/H', 'Prevents accidental data corruption in user-managed columns. Enforced in code, not config.'),
         ('Lark write strategy', 'Single atomic API call per row in write_row()', 'Prevents partial writes if process crashes mid-row. All fields written or none.'),
         ('Retry logic', 'with_retry(): 3 attempts, 2s/4s/8s back-off', 'Handles transient network blips without crashing the watcher loop.'),
         ('Startup validation', '_validate_env() checks all .env vars at boot', 'Clear error at startup instead of confusing NoneType crash mid-run.'),
         ('Shortcode security', 're.fullmatch() validates shortcode before JS eval', 'Prevents JS injection if a malicious URL reaches the page.evaluate() call.'),
-        ('Trigger mode', 'watcher.py daemon, checks Lark every 5 minutes', 'User pastes URL once - data appears automatically. No manual run per batch.'),
+        ('Trigger mode', 'watcher.py daemon, checks Lark every 3 minutes', 'User pastes URL once - data appears automatically. No manual run per batch.'),
         ('Browser', 'Firefox persistent context, ~/.cache/auto-count/firefox-profile', 'Separate from user Chrome. Retains Instagram/RedNote login across runs.'),
         ('Shared utilities', 'src/utils.py: clean_caption + with_retry', 'Single source of truth - no duplicate code across modules.'),
     ],
@@ -429,10 +430,10 @@ add_heading(doc, '2.1 Component Overview', 2)
 make_table(doc,
     ['File', 'Component', 'What It Does'],
     [
-        ('watcher.py', 'Background Daemon', 'Checks Lark every 5 min. Validates .env on startup. Calls process_all() each cycle.'),
+        ('watcher.py', 'Background Daemon', 'Checks Lark every 3 min. Validates .env on startup. Calls process_all() each cycle.'),
         ('src/lark_reader.py', 'Lark Bitable Reader', 'Reads Lark. Returns (record_id, url) pairs where Column F has URL and A/D/E/G are empty.'),
         ('src/lark_writer.py', 'Lark Bitable Writer', 'Writes A/D/E/G in ONE atomic API call. Hard allowlist raises ValueError for any other column. Retries 3x.'),
-        ('src/browser_reader.py', 'Firefox Controller', 'Opens Instagram/RedNote in persistent Firefox. Two-screenshot Instagram flow (reel + grid).'),
+        ('src/browser_reader.py', 'Firefox Controller', 'Opens Instagram/RedNote in persistent Firefox. Instagram: reel page screenshot (view count, before Escape) + profile grid click for split-view (caption/date).'),
         ('src/metadata_reader.py', 'yt-dlp Extractor', 'Extracts YouTube/TikTok metadata without a browser. Fast and exact.'),
         ('src/vision_extract.py', 'Claude Vision Extractor', 'Sends screenshot to claude-haiku-4-5. Compresses images >4.5MB. Returns posted_date, caption, view_count.'),
         ('src/processor.py', 'URL Router + Orchestrator', 'Routes each URL to yt-dlp or Firefox+Vision. Merges Instagram two-screenshot results.'),
@@ -448,7 +449,7 @@ add_heading(doc, '2.2 System Flow Diagram', 2)
 
 for line in [
     '  USER starts watcher once: python watcher.py',
-    '  watcher.py: validates .env, then loops every 5 minutes',
+    '  watcher.py: validates .env, then loops every 3 minutes',
     '         |',
     '  USER pastes URLs into Lark Column F (any time)',
     '         |',
@@ -466,8 +467,8 @@ for line in [
     '         +---- Instagram / RedNote? -+',
     '                                     v',
     '                       [browser_reader.py] Firefox',
-    '                       Instagram: reel screenshot (caption+date)',
-    '                                + grid screenshot (view count)',
+    '                       Instagram: reel page screenshot (view count, taken before Escape)',
+    '                                + split-view screenshot (caption+date, from grid click)',
     '                       RedNote:  full-page screenshot',
     '                                     v',
     '                       [vision_extract.py] claude-haiku-4-5',
@@ -910,7 +911,7 @@ make_table(doc,
 doc.add_paragraph()
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-run = p.add_run('— End of Document — Version 3.2 —')
+run = p.add_run('— End of Document — Version 3.3 —')
 run.italic = True
 run.font.size = Pt(9)
 run.font.color.rgb = RGBColor(*GREY)
