@@ -48,8 +48,8 @@ GRID_PROMPT = """\
 This is a screenshot of an Instagram profile's Reels grid.
 
 Your ONLY task: find the view/play count for the target reel.
-- If one thumbnail appears centred or visually distinct, that is the target — read its count.
-- If no thumbnail is highlighted, read the view count of the FIRST thumbnail in the top-left.
+- The target thumbnail has a BRIGHT RED border/outline around it — read ONLY that thumbnail's play count.
+- If no red-bordered thumbnail is visible, read the count of the most centred thumbnail in the viewport.
 - Instagram shows a white ▶ play icon with a number overlaid on each thumbnail (e.g. 132K, 1.2M, 45K).
 - Convert shorthand: 132K → 132000, 1.2M → 1200000, 45.3K → 45300.
 - Return null only if there are no thumbnails at all or no numbers visible.

@@ -50,23 +50,25 @@ def process_all() -> list:
                 data = get_metadata(url)
             else:
                 log.debug("Using Firefox + Vision for: %s", url)
-                main_ss, grid_ss = get_screenshot(url)
+                main_ss, grid_ss, dom_date = get_screenshot(url)
                 log.debug("Screenshots taken — reel=%d bytes, grid=%s bytes",
                           len(main_ss), len(grid_ss) if grid_ss else "N/A")
 
                 if grid_ss is not None:
-                    # Instagram: reel page → caption + date; grid page → view count
-                    log.debug("Instagram: extracting caption/date from reel page")
+                    # Instagram: reel page → caption; grid page → view count;
+                    # dom_date → posted date (extracted directly from <time> element)
+                    log.debug("Instagram: extracting caption from reel page")
                     reel_data = extract_from_screenshot(main_ss)
                     log.debug("Instagram: extracting view count from grid page")
                     grid_data = extract_from_screenshot(grid_ss, prompt=GRID_PROMPT)
                     data = {
-                        "posted_date": reel_data["posted_date"],
+                        "posted_date": dom_date or reel_data["posted_date"],
                         "caption":     reel_data["caption"],
                         "view_count":  grid_data["view_count"] or reel_data["view_count"],
                     }
-                    log.debug("Instagram merge — date=%s caption=%r views=%s",
-                              data["posted_date"], data["caption"][:40], data["view_count"])
+                    log.debug("Instagram merge — dom_date=%s vision_date=%s caption=%r views=%s",
+                              dom_date, reel_data["posted_date"],
+                              data["caption"][:40], data["view_count"])
                 else:
                     # RedNote / other vision platforms — single screenshot
                     data = extract_from_screenshot(main_ss)

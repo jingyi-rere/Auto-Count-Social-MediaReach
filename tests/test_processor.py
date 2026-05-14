@@ -106,7 +106,7 @@ class TestProcessAll:
         fake_reel_ss = b"reel_bytes"
         fake_grid_ss = b"grid_bytes"
         monkeypatch.setattr(processor, "get_screenshot",
-                            MagicMock(return_value=(fake_reel_ss, fake_grid_ss)))
+                            MagicMock(return_value=(fake_reel_ss, fake_grid_ss, None)))
 
         reel_data = {"posted_date": "2024-03-15", "caption": "Good caption", "view_count": None}
         grid_data = {"posted_date": None, "caption": "No caption", "view_count": 132000}

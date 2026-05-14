@@ -29,11 +29,24 @@ async def _screenshot_url(page, url: str) -> bytes:
     return await page.screenshot(full_page=False)
 
 
+import re as _re
+from typing import Optional
+
+
+def _parse_ig_date(datetime_str: Optional[str]) -> Optional[str]:
+    """Extract YYYY-MM-DD from an ISO 8601 datetime string (or return None)."""
+    if not datetime_str:
+        return None
+    m = _re.match(r"(\d{4}-\d{2}-\d{2})", datetime_str)
+    return m.group(1) if m else None
+
+
 async def _get_instagram_screenshots(page, reel_url: str):
     """
-    Returns (reel_screenshot, grid_screenshot).
-    reel_screenshot — individual reel page (caption + date)
+    Returns (reel_screenshot, grid_screenshot, shortcode, dom_date).
+    reel_screenshot — individual reel page (caption)
     grid_screenshot — profile reels grid (view counts visible)
+    dom_date        — YYYY-MM-DD extracted from DOM <time>, or None
     """
     # 1. Load the individual reel page
     log.info("Instagram: loading reel page %s", reel_url[:80])
@@ -41,12 +54,47 @@ async def _get_instagram_screenshots(page, reel_url: str):
     await page.wait_for_timeout(4_000)
     await page.keyboard.press("Escape")
     await page.wait_for_timeout(500)
+
+    # Extract date from DOM <time datetime="..."> — far more reliable than vision
+    try:
+        raw_date = await page.evaluate("""
+            () => {
+                const t = document.querySelector('time[datetime]');
+                return t ? t.getAttribute('datetime') : null;
+            }
+        """)
+        dom_date = _parse_ig_date(raw_date)
+        if dom_date:
+            log.debug("Instagram: DOM date = %s (raw: %s)", dom_date, raw_date)
+        else:
+            log.debug("Instagram: no <time datetime> found on reel page")
+    except Exception as exc:
+        log.debug("Instagram: DOM date extraction failed: %s", exc)
+        dom_date = None
+
+    # Expand collapsed caption (Instagram truncates with "...more")
+    try:
+        clicked = await page.evaluate("""
+            () => {
+                const spans = Array.from(document.querySelectorAll('span'));
+                const btn = spans.find(
+                    s => s.textContent.trim() === 'more' && s.offsetParent !== null
+                );
+                if (btn) { btn.click(); return true; }
+                return false;
+            }
+        """)
+        if clicked:
+            await page.wait_for_timeout(600)
+            log.debug("Instagram: expanded caption via 'more' button")
+    except Exception as exc:
+        log.debug("Instagram: 'more' button click failed: %s", exc)
+
     reel_screenshot = await page.screenshot(full_page=False)
     log.debug("Reel page screenshot taken (%d bytes)", len(reel_screenshot))
 
     # 2. Extract the shortcode and the profile reels grid URL
     # Instagram sometimes redirects /reel/ → /reels/ so handle both
-    import re as _re
     sc_match = _re.search(r"/reel(?:s)?/([^/?#]+)", reel_url)
     shortcode = sc_match.group(1) if sc_match else reel_url.rstrip("/").split("/")[-1]
 
@@ -60,7 +108,7 @@ async def _get_instagram_screenshots(page, reel_url: str):
             "skipping grid screenshot to prevent JS injection.",
             shortcode,
         )
-        return reel_screenshot, None, shortcode
+        return reel_screenshot, None, shortcode, dom_date
 
     # The author's link on the page looks like:
     #   https://www.instagram.com/ricebowlmy/reels/
@@ -108,12 +156,18 @@ async def _get_instagram_screenshots(page, reel_url: str):
             """)
             if found:
                 found_reel = True
-                # Scroll the matching thumbnail to centre of viewport
+                # Scroll the matching thumbnail to centre and add a red border
+                # so Claude Vision can unambiguously identify which one is the target
                 await page.evaluate(f"""
                     () => {{
                         const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
                               || document.querySelector('a[href*="/reels/{shortcode}/"]');
-                        if (el) el.scrollIntoView({{block: 'center'}});
+                        if (el) {{
+                            el.scrollIntoView({{block: 'center'}});
+                            el.style.outline = '6px solid red';
+                            el.style.outlineOffset = '3px';
+                            el.style.zIndex = '9999';
+                        }}
                     }}
                 """)
                 await page.wait_for_timeout(1_500)
@@ -140,7 +194,7 @@ async def _get_instagram_screenshots(page, reel_url: str):
     else:
         log.warning("Instagram: could not find profile reels URL — no grid screenshot")
 
-    return reel_screenshot, grid_screenshot, shortcode
+    return reel_screenshot, grid_screenshot, shortcode, dom_date
 
 
 def _release_firefox_lock():
@@ -170,15 +224,15 @@ async def _take_screenshot(url: str):
 
         try:
             if "instagram.com" in url:
-                reel_ss, grid_ss, shortcode = await _get_instagram_screenshots(page, url)
-                return reel_ss, grid_ss
+                reel_ss, grid_ss, shortcode, dom_date = await _get_instagram_screenshots(page, url)
+                return reel_ss, grid_ss, dom_date
             else:
                 ss = await _screenshot_url(page, url)
-                return ss, None
+                return ss, None, None
         finally:
             await ctx.close()
 
 
 def get_screenshot(url: str):
-    """Returns (main_screenshot, grid_screenshot_or_None)."""
+    """Returns (main_screenshot, grid_screenshot_or_None, dom_date_or_None)."""
     return asyncio.run(_take_screenshot(url))
