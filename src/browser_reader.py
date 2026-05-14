@@ -13,7 +13,7 @@ import asyncio
 import re as _re
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 from playwright.async_api import async_playwright
 from src.logger import get_logger
 
@@ -34,21 +34,18 @@ def _parse_ig_date(datetime_str: Optional[str]) -> Optional[str]:
 
 
 def _parse_ig_relative_date(text: Optional[str]) -> Optional[str]:
-    """
-    Convert Instagram relative dates like '1w', '7 days ago', '3h' to YYYY-MM-DD.
-    Uses today's date as the reference point.
-    """
+    """Convert '1w', '7 days ago', '3h' etc. to YYYY-MM-DD using today as reference."""
     if not text:
         return None
     today = date.today()
-    text = text.strip().lower()
-    m = _re.search(r'(\d+)\s*w', text)        # weeks
+    t = text.strip().lower()
+    m = _re.search(r'(\d+)\s*w', t)   # weeks
     if m:
         return (today - timedelta(weeks=int(m.group(1)))).isoformat()
-    m = _re.search(r'(\d+)\s*d', text)        # days
+    m = _re.search(r'(\d+)\s*d', t)   # days
     if m:
         return (today - timedelta(days=int(m.group(1)))).isoformat()
-    m = _re.search(r'(\d+)\s*h', text)        # hours → same day
+    m = _re.search(r'(\d+)\s*h', t)   # hours → same day
     if m:
         return today.isoformat()
     return None
@@ -57,7 +54,7 @@ def _parse_ig_relative_date(text: Optional[str]) -> Optional[str]:
 # ── View-count helpers ─────────────────────────────────────────────────────────
 
 def _parse_count_text(text: Optional[str]) -> Optional[int]:
-    """Convert '21.6K', '1.2M', '21,600' → integer."""
+    """Convert '21.6K', '1.2M', '21,600', '21600' → integer."""
     if not text:
         return None
     text = text.strip().replace(',', '')
@@ -88,30 +85,74 @@ async def _get_instagram_data(page, reel_url: str):
     Returns (post_screenshot, thumbnail_screenshot, shortcode, dom_date, dom_view_count).
 
     Flow:
-      1. Load reel page briefly — extract shortcode + author profile URL.
-      2. Navigate to profile reels grid — scroll to target thumbnail.
-         a. Extract view count directly from DOM (span text like '21.6K').
-         b. Crop screenshot of just the target thumbnail (OCR fallback).
-      3. Click thumbnail — Instagram opens the split view
-         (video left, caption fully visible on right).
-      4. Extract date from DOM <time> element (datetime attr or relative text).
-         Screenshot the split view for caption extraction.
+      1. Load reel page. Use page.url AFTER navigation (handles Instagram redirects)
+         to get the real shortcode. Try to extract view count from JSON-LD structured
+         data or meta tags on the reel page — most reliable source.
+      2. Navigate to profile reels grid. Scroll to target thumbnail.
+         Also try DOM span text for view count (secondary source).
+         Crop the thumbnail screenshot (OCR fallback).
+      3. Click thumbnail — Instagram opens split view (full caption on right).
+      4. Extract date from DOM <time> (datetime attr or relative text like '1w').
     """
-    # ── Step 1: load reel page to get shortcode + author profile URL ──────────
+    # ── Step 1: load reel page ────────────────────────────────────────────────
     log.info("Instagram: loading reel page %s", reel_url[:80])
     await page.goto(reel_url, wait_until="domcontentloaded", timeout=45_000)
-    await page.wait_for_timeout(3_000)
+    await page.wait_for_timeout(4_000)
     await page.keyboard.press("Escape")
     await page.wait_for_timeout(500)
 
-    sc_match = _re.search(r"/reel(?:s)?/([^/?#]+)", reel_url)
+    # Use page.url AFTER navigation — Instagram sometimes redirects to a different
+    # shortcode and we must use the final URL to find the right grid thumbnail.
+    actual_url = page.url
+    log.debug("Instagram: actual URL after redirect = %s", actual_url[:100])
+    sc_match = (_re.search(r"/reel(?:s)?/([^/?#]+)", actual_url) or
+                _re.search(r"/reel(?:s)?/([^/?#]+)", reel_url))
     shortcode = sc_match.group(1) if sc_match else reel_url.rstrip("/").split("/")[-1]
+    log.info("Instagram: shortcode = %s", shortcode)
 
-    # SECURITY: validate shortcode before interpolating into JS strings
+    # SECURITY: validate shortcode before interpolating into JS
     if not _re.fullmatch(r"[A-Za-z0-9_\-]+", shortcode):
         log.error("Instagram: unsafe shortcode '%s' — aborting", shortcode)
         return await page.screenshot(full_page=False), None, shortcode, None, None
 
+    # ── Try view count from reel page JSON-LD or meta tags ────────────────────
+    # This is the most reliable source — structured data embedded in the page.
+    dom_view_count = None
+    try:
+        raw_vc = await page.evaluate("""
+            () => {
+                // 1. JSON-LD structured data (schema.org VideoObject)
+                for (const script of document.querySelectorAll(
+                        'script[type="application/ld+json"]')) {
+                    try {
+                        const d = JSON.parse(script.textContent);
+                        const stats = d.interactionStatistic || [];
+                        for (const s of (Array.isArray(stats) ? stats : [stats])) {
+                            const t = (s.interactionType || '').toLowerCase();
+                            if (t.includes('watch') || t.includes('view')) {
+                                return String(s.userInteractionCount);
+                            }
+                        }
+                        if (d.contentSize || d.viewCount) {
+                            return String(d.viewCount || d.contentSize);
+                        }
+                    } catch {}
+                }
+                // 2. video:view_count meta tag
+                const meta = document.querySelector('meta[property="video:view_count"]');
+                if (meta) return meta.getAttribute('content');
+                return null;
+            }
+        """)
+        dom_view_count = _parse_count_text(raw_vc)
+        if dom_view_count is not None:
+            log.info("Instagram: reel page view count = %d (raw: %s)", dom_view_count, raw_vc)
+        else:
+            log.debug("Instagram: no view count in JSON-LD/meta (raw: %s)", raw_vc)
+    except Exception as exc:
+        log.debug("Instagram: reel page view count failed: %s", exc)
+
+    # ── Find author profile reels URL ─────────────────────────────────────────
     BLOCKED = {"reel", "reels", "explore", "accounts", "direct", "stories",
                "audio", "p", "tv", ""}
     profile_reels_url = await page.evaluate("""
@@ -128,7 +169,6 @@ async def _get_instagram_data(page, reel_url: str):
     thumbnail_screenshot = None
     post_screenshot = None
     dom_date = None
-    dom_view_count = None
 
     if not profile_reels_url:
         log.warning("Instagram: could not find profile reels URL")
@@ -140,13 +180,14 @@ async def _get_instagram_data(page, reel_url: str):
         await page.keyboard.press("Escape")
         await page.wait_for_timeout(500)
 
-        # Scroll until the target thumbnail link appears (max ~60 reels)
+        # Scroll until the target thumbnail appears (max ~60 reels)
         found_reel = False
         for _ in range(15):
             found = await page.evaluate(f"""
                 () => !!(
                     document.querySelector('a[href*="/reel/{shortcode}/"]') ||
-                    document.querySelector('a[href*="/reels/{shortcode}/"]')
+                    document.querySelector('a[href*="/reels/{shortcode}/"]') ||
+                    document.querySelector('a[href*="/p/{shortcode}/"]')
                 )
             """)
             if found:
@@ -154,7 +195,8 @@ async def _get_instagram_data(page, reel_url: str):
                 await page.evaluate(f"""
                     () => {{
                         const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
-                              || document.querySelector('a[href*="/reels/{shortcode}/"]');
+                              || document.querySelector('a[href*="/reels/{shortcode}/"]')
+                              || document.querySelector('a[href*="/p/{shortcode}/"]');
                         if (el) el.scrollIntoView({{block: 'center'}});
                     }}
                 """)
@@ -166,50 +208,49 @@ async def _get_instagram_data(page, reel_url: str):
         if found_reel:
             log.info("Instagram: found reel %s in grid", shortcode)
 
-            # ── 2a: extract view count directly from DOM ──────────────────────
-            # Instagram renders the count as text (e.g. "21.6K") in a <span>
-            # inside the thumbnail <a> element.  Reading it from the DOM is far
-            # more reliable than asking Claude Vision to OCR the screenshot.
-            try:
-                raw_count = await page.evaluate(f"""
-                    () => {{
-                        const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
-                              || document.querySelector('a[href*="/reels/{shortcode}/"]');
-                        if (!el) return null;
+            # Try DOM view count from grid thumbnail (if reel page extraction failed)
+            if dom_view_count is None:
+                try:
+                    raw_grid_vc = await page.evaluate(f"""
+                        () => {{
+                            const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
+                                  || document.querySelector('a[href*="/reels/{shortcode}/"]')
+                                  || document.querySelector('a[href*="/p/{shortcode}/"]');
+                            if (!el) return null;
 
-                        // 1. aria-label containing "play" or "view" (most reliable)
-                        for (const e of [el, ...el.querySelectorAll('[aria-label]')]) {{
-                            const label = (e.getAttribute('aria-label') || '').toLowerCase();
-                            if (label.includes('play') || label.includes('view')) {{
-                                const m = label.match(/([\\d][\\d,]*)/);
-                                if (m) return m[1];
+                            // aria-label on element or children (e.g. "21,600 plays")
+                            for (const e of [el, ...el.querySelectorAll('[aria-label]')]) {{
+                                const label = (e.getAttribute('aria-label') || '').toLowerCase();
+                                if (label.includes('play') || label.includes('view')) {{
+                                    const m = label.match(/([\\d][\\d,]*)/);
+                                    if (m) return m[1];
+                                }}
                             }}
+
+                            // Also check parent element (count badge may be outside <a>)
+                            const parent = el.parentElement;
+                            const searchRoot = parent || el;
+                            for (const span of searchRoot.querySelectorAll('span')) {{
+                                const text = span.textContent.trim();
+                                if (/^[\\d.]+[KkMm]$/.test(text)) return text;
+                                if (/^\\d{{4,}}$/.test(text)) return text;
+                            }}
+                            return null;
                         }}
+                    """)
+                    dom_view_count = _parse_count_text(raw_grid_vc)
+                    if dom_view_count is not None:
+                        log.info("Instagram: grid DOM view count = %d (raw: %s)",
+                                 dom_view_count, raw_grid_vc)
+                except Exception as exc:
+                    log.debug("Instagram: grid DOM view count failed: %s", exc)
 
-                        // 2. span text matching count pattern like "21.6K" or "412"
-                        for (const span of el.querySelectorAll('span')) {{
-                            const text = span.textContent.trim();
-                            if (/^[\\d.]+[KkMm]$/.test(text)) return text;
-                            if (/^\\d+$/.test(text) && text.length >= 3) return text;
-                        }}
-
-                        return null;
-                    }}
-                """)
-                dom_view_count = _parse_count_text(raw_count)
-                if dom_view_count is not None:
-                    log.info("Instagram: DOM view count = %d (raw: %s)",
-                             dom_view_count, raw_count)
-                else:
-                    log.debug("Instagram: no view count found in DOM (raw: %s)", raw_count)
-            except Exception as exc:
-                log.debug("Instagram: DOM view count extraction failed: %s", exc)
-
-            # ── 2b: crop screenshot of target thumbnail (OCR fallback) ─────────
+            # Crop screenshot of just the target thumbnail (OCR fallback)
             bbox = await page.evaluate(f"""
                 () => {{
                     const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
-                          || document.querySelector('a[href*="/reels/{shortcode}/"]');
+                          || document.querySelector('a[href*="/reels/{shortcode}/"]')
+                          || document.querySelector('a[href*="/p/{shortcode}/"]');
                     if (!el) return null;
                     const rect = el.getBoundingClientRect();
                     return {{x: rect.x, y: rect.y, width: rect.width, height: rect.height}};
@@ -230,12 +271,13 @@ async def _get_instagram_data(page, reel_url: str):
                 thumbnail_screenshot = await page.screenshot(full_page=False)
                 log.debug("Instagram: bbox unavailable — full grid screenshot")
 
-            # ── Step 3: click thumbnail → split view (caption fully visible) ──
+            # ── Step 3: click thumbnail → split view (full caption on right) ──
             log.info("Instagram: clicking thumbnail to open split post view")
             clicked = await page.evaluate(f"""
                 () => {{
                     const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
-                          || document.querySelector('a[href*="/reels/{shortcode}/"]');
+                          || document.querySelector('a[href*="/reels/{shortcode}/"]')
+                          || document.querySelector('a[href*="/p/{shortcode}/"]');
                     if (el) {{ (el.querySelector('img') || el).click(); return true; }}
                     return false;
                 }}
@@ -243,9 +285,7 @@ async def _get_instagram_data(page, reel_url: str):
             if clicked:
                 await page.wait_for_timeout(3_000)
 
-                # ── Step 4: extract date from DOM + screenshot split view ──────
-                # Try <time datetime="..."> first (ISO date in attr), then fall
-                # back to parsing the visible text (e.g. "1w", "7 days ago").
+                # ── Step 4: extract date, screenshot split view ────────────────
                 try:
                     await page.wait_for_selector('time', timeout=5_000)
                     date_info = await page.evaluate("""
@@ -267,8 +307,7 @@ async def _get_instagram_data(page, reel_url: str):
                     log.debug("Instagram: date extraction failed: %s", exc)
 
                 post_screenshot = await page.screenshot(full_page=False)
-                log.debug("Instagram: split-view screenshot (%d bytes)",
-                          len(post_screenshot))
+                log.debug("Instagram: split-view screenshot (%d bytes)", len(post_screenshot))
             else:
                 log.warning("Instagram: could not click thumbnail")
         else:
@@ -280,7 +319,7 @@ async def _get_instagram_data(page, reel_url: str):
             await page.wait_for_timeout(1_000)
             thumbnail_screenshot = await page.screenshot(full_page=False)
 
-    # Fallback: if split-view click failed, use the original reel page
+    # Fallback: split-view click failed → use original reel page
     if post_screenshot is None:
         log.info("Instagram: falling back to direct reel page screenshot")
         await page.goto(reel_url, wait_until="domcontentloaded", timeout=45_000)

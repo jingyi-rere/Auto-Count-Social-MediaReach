@@ -3,6 +3,7 @@ processor.py — Routes each URL to the right extraction method:
   - YouTube / TikTok  → yt-dlp (fast, exact numbers, no browser)
   - Instagram / RedNote → Firefox screenshot + Claude Vision
 """
+from difflib import SequenceMatcher
 from src.lark_reader    import get_new_rows
 from src.lark_writer    import write_row
 from src.metadata_reader import get_metadata
@@ -19,6 +20,9 @@ YTDLP_PLATFORMS = ("youtube.com", "youtu.be")
 # Platforms handled by Firefox + Claude Vision
 VISION_PLATFORMS = ("instagram.com", "xiaohongshu.com", "xhslink.com", "tiktok.com")
 
+# Platforms that reliably return the post date (used for cross-platform date fill)
+DATED_PLATFORMS = ("youtube.com", "youtu.be")
+
 
 def _route(url: str) -> str:
     url_lower = url.lower()
@@ -27,6 +31,68 @@ def _route(url: str) -> str:
     if any(p in url_lower for p in VISION_PLATFORMS):
         return "vision"
     return "ytdlp"   # default: try yt-dlp for unknown platforms
+
+
+def _caption_similarity(a: str, b: str) -> float:
+    """0.0–1.0 similarity between two caption strings."""
+    if not a or not b:
+        return 0.0
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+
+def _fill_dates_from_same_videos(results: list) -> list:
+    """
+    Cross-platform date fill: if an Instagram row has no date but there's a
+    YouTube row whose caption is ≥75% similar, copy the YouTube date.
+
+    The user posts the same video on both platforms with the same (or very
+    similar) caption, so caption similarity is a reliable same-video signal.
+    """
+    dated_rows = [
+        r for r in results
+        if r["status"] == "ok"
+        and r["data"].get("posted_date")
+        and any(p in r["url"] for p in DATED_PLATFORMS)
+    ]
+    undated_ig = [
+        r for r in results
+        if r["status"] == "ok"
+        and not r["data"].get("posted_date")
+        and "instagram.com" in r["url"]
+    ]
+
+    for ig in undated_ig:
+        ig_cap = (ig["data"].get("caption") or "").strip()
+        if not ig_cap or ig_cap == "No caption":
+            continue
+
+        best_ratio, best_match = 0.0, None
+        for yt in dated_rows:
+            ratio = _caption_similarity(ig_cap, yt["data"].get("caption") or "")
+            if ratio > best_ratio:
+                best_ratio, best_match = ratio, yt
+
+        if best_ratio >= 0.75 and best_match:
+            matched_date = best_match["data"]["posted_date"]
+            ig["data"]["posted_date"] = matched_date
+            log.info(
+                "Cross-platform date fill: Instagram ← %s  "
+                "(%.0f%% caption match with YouTube)",
+                matched_date, best_ratio * 100,
+            )
+            # Update Lark with the filled date
+            try:
+                write_row(
+                    record_id   = ig["record_id"],
+                    posted_date = matched_date,
+                    caption     = ig["data"]["caption"],
+                    view_count  = ig["data"]["view_count"],
+                )
+                log.info("  ✓ Date back-filled in Lark (record_id=%s)", ig["record_id"])
+            except Exception as exc:
+                log.error("Cross-platform date fill write failed: %s", exc)
+
+    return results
 
 
 def process_all() -> list:
@@ -56,10 +122,9 @@ def process_all() -> list:
                           dom_date, dom_vc)
 
                 if thumb_ss is not None:
-                    # Instagram two-source extraction:
-                    # - caption: from split-view screenshot (main_ss), right panel
-                    # - date: from DOM <time> element (dom_date), relative if needed
-                    # - view count: DOM span text (dom_vc) is primary; OCR is fallback
+                    # Instagram: split-view screenshot → caption
+                    #            DOM <time> → date (relative text parsed too)
+                    #            JSON-LD/meta or DOM span → view count (OCR fallback)
                     log.debug("Instagram: extracting caption from split-view screenshot")
                     reel_data = extract_from_screenshot(main_ss)
                     log.debug("Instagram: extracting view count from thumbnail (OCR fallback)")
@@ -89,10 +154,16 @@ def process_all() -> list:
             )
 
             log.info("  ✓ Written to Lark (record_id=%s)", record_id)
-            results.append({"url": url, "status": "ok", "data": data})
+            # Include record_id so _fill_dates_from_same_videos can re-write if needed
+            results.append({"url": url, "record_id": record_id,
+                            "status": "ok", "data": data})
 
         except Exception as exc:
             log.error("  ✗ FAILED for %s — %s", url[:80], exc, exc_info=True)
-            results.append({"url": url, "status": "error", "error": str(exc)})
+            results.append({"url": url, "record_id": record_id,
+                            "status": "error", "error": str(exc)})
+
+    # Cross-platform date fill: copy YouTube date to Instagram if same video
+    results = _fill_dates_from_same_videos(results)
 
     return results
