@@ -143,11 +143,24 @@ async def _get_instagram_data(page, reel_url: str):
         log.error("Instagram: unsafe shortcode '%s' — aborting", shortcode)
         return await page.screenshot(full_page=False), None, shortcode, None, None
 
-    # Try view count from reel page JSON-LD (most reliable)
+    # Try view count from reel page — multiple sources, most reliable first.
+    # Getting the count here (from the actual reel URL) means we always get
+    # the number for the reel the user pasted, not whatever thumbnail the grid
+    # selector happens to find.
     dom_view_count = None
     try:
         raw_vc = await page.evaluate("""
             () => {
+                // 1. Embedded script data — Instagram buries play_count / video_view_count
+                //    in plain <script> tags as raw JSON fragments.
+                for (const script of document.querySelectorAll('script')) {
+                    const text = script.textContent || '';
+                    let m = text.match(/"video_view_count"\\s*:\\s*(\\d+)/);
+                    if (m) return m[1];
+                    m = text.match(/"play_count"\\s*:\\s*(\\d+)/);
+                    if (m) return m[1];
+                }
+                // 2. JSON-LD structured data (schema.org VideoObject)
                 for (const script of document.querySelectorAll(
                         'script[type="application/ld+json"]')) {
                     try {
@@ -161,6 +174,7 @@ async def _get_instagram_data(page, reel_url: str):
                         }
                     } catch {}
                 }
+                // 3. video:view_count meta tag
                 const meta = document.querySelector('meta[property="video:view_count"]');
                 if (meta) return meta.getAttribute('content');
                 return null;
@@ -169,6 +183,8 @@ async def _get_instagram_data(page, reel_url: str):
         dom_view_count = _parse_count_text(raw_vc)
         if dom_view_count is not None:
             log.info("Instagram: reel-page view count = %d (raw: %s)", dom_view_count, raw_vc)
+        else:
+            log.debug("Instagram: no view count found in reel page data")
     except Exception as exc:
         log.debug("Instagram: reel-page view count failed: %s", exc)
 
