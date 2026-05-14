@@ -4,7 +4,7 @@ processor.py — Routes each URL to the right extraction method:
   - Instagram / RedNote → Firefox screenshot + Claude Vision
 """
 from difflib import SequenceMatcher
-from src.lark_reader    import get_new_rows
+from src.lark_reader    import get_new_rows, get_dated_rows_for_platforms
 from src.lark_writer    import write_row
 from src.metadata_reader import get_metadata
 from src.browser_reader  import get_screenshot
@@ -43,44 +43,63 @@ def _caption_similarity(a: str, b: str) -> float:
 def _fill_dates_from_same_videos(results: list) -> list:
     """
     Cross-platform date fill: if an Instagram row has no date but there's a
-    YouTube row whose caption is ≥75% similar, copy the YouTube date.
+    YouTube row with ≥75% caption similarity, copy the YouTube date.
 
-    The user posts the same video on both platforms with the same (or very
-    similar) caption, so caption similarity is a reliable same-video signal.
+    Looks at BOTH the current run's results AND all previously-processed
+    YouTube rows already in Lark (handles the case where YouTube was processed
+    in an earlier watcher cycle).
     """
-    dated_rows = [
-        r for r in results
-        if r["status"] == "ok"
-        and r["data"].get("posted_date")
-        and any(p in r["url"] for p in DATED_PLATFORMS)
-    ]
     undated_ig = [
         r for r in results
         if r["status"] == "ok"
         and not r["data"].get("posted_date")
         and "instagram.com" in r["url"]
     ]
+    if not undated_ig:
+        return results  # nothing to fill — skip the Lark API call
+
+    # Dated rows from this run
+    from_run = [
+        {"url": r["url"], "date": r["data"]["posted_date"],
+         "caption": r["data"].get("caption", "")}
+        for r in results
+        if r["status"] == "ok"
+        and r["data"].get("posted_date")
+        and any(p in r["url"] for p in DATED_PLATFORMS)
+    ]
+
+    # Dated rows already in Lark from previous runs (only fetched when needed)
+    try:
+        from_lark = get_dated_rows_for_platforms(DATED_PLATFORMS)
+    except Exception as exc:
+        log.debug("Could not read dated rows from Lark: %s", exc)
+        from_lark = []
+
+    seen = {r["url"] for r in from_run}
+    all_dated = from_run + [r for r in from_lark if r["url"] not in seen]
+    log.debug("Cross-platform date pool: %d rows (%d this run, %d from Lark)",
+              len(all_dated), len(from_run), len(from_lark))
 
     for ig in undated_ig:
         ig_cap = (ig["data"].get("caption") or "").strip()
         if not ig_cap or ig_cap == "No caption":
+            log.debug("Cross-platform date: skipping row with empty/no caption")
             continue
 
         best_ratio, best_match = 0.0, None
-        for yt in dated_rows:
-            ratio = _caption_similarity(ig_cap, yt["data"].get("caption") or "")
+        for yt in all_dated:
+            ratio = _caption_similarity(ig_cap, yt.get("caption") or "")
             if ratio > best_ratio:
                 best_ratio, best_match = ratio, yt
 
         if best_ratio >= 0.75 and best_match:
-            matched_date = best_match["data"]["posted_date"]
+            matched_date = best_match["date"]
             ig["data"]["posted_date"] = matched_date
             log.info(
                 "Cross-platform date fill: Instagram ← %s  "
                 "(%.0f%% caption match with YouTube)",
                 matched_date, best_ratio * 100,
             )
-            # Update Lark with the filled date
             try:
                 write_row(
                     record_id   = ig["record_id"],
@@ -91,6 +110,9 @@ def _fill_dates_from_same_videos(results: list) -> list:
                 log.info("  ✓ Date back-filled in Lark (record_id=%s)", ig["record_id"])
             except Exception as exc:
                 log.error("Cross-platform date fill write failed: %s", exc)
+        else:
+            log.debug("Cross-platform date: best match ratio=%.2f (need ≥0.75), no fill",
+                      best_ratio)
 
     return results
 

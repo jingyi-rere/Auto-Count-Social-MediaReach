@@ -39,13 +39,13 @@ def _parse_ig_relative_date(text: Optional[str]) -> Optional[str]:
         return None
     today = date.today()
     t = text.strip().lower()
-    m = _re.search(r'(\d+)\s*w', t)   # weeks
+    m = _re.search(r'(\d+)\s*w', t)
     if m:
         return (today - timedelta(weeks=int(m.group(1)))).isoformat()
-    m = _re.search(r'(\d+)\s*d', t)   # days
+    m = _re.search(r'(\d+)\s*d', t)
     if m:
         return (today - timedelta(days=int(m.group(1)))).isoformat()
-    m = _re.search(r'(\d+)\s*h', t)   # hours → same day
+    m = _re.search(r'(\d+)\s*h', t)
     if m:
         return today.isoformat()
     return None
@@ -67,10 +67,41 @@ def _parse_count_text(text: Optional[str]) -> Optional[int]:
     return int(num * multiplier)
 
 
+# ── JavaScript snippet: find the grid thumbnail <a> for a given shortcode ──────
+# Grid thumbnails always contain an <img> child; navigation/related-posts links
+# do not. Using the img-filter prevents querySelector from returning the wrong
+# element (a nav link with the same shortcode in its href) — which was the root
+# cause of wrong view counts, wrong bboxes, and the split-view never opening.
+
+def _js_find_thumbnail(shortcode: str) -> str:
+    """Return a JS expression that evaluates to the grid thumbnail <a> element or null."""
+    sc = shortcode  # already validated as [A-Za-z0-9_-]+
+    return f"""
+        (() => {{
+            const patterns = [
+                'a[href*="/reel/{sc}/"]',
+                'a[href*="/reels/{sc}/"]',
+                'a[href*="/p/{sc}/"]',
+            ];
+            for (const pat of patterns) {{
+                const links = Array.from(document.querySelectorAll(pat));
+                // Grid thumbnails always wrap an <img>; navigation links do not
+                const withImg = links.find(a => a.querySelector('img'));
+                if (withImg) return withImg;
+            }}
+            // Fallback: any matching link (better than nothing)
+            for (const pat of patterns) {{
+                const el = document.querySelector(pat);
+                if (el) return el;
+            }}
+            return null;
+        }})()
+    """
+
+
 # ── Non-Instagram helper ───────────────────────────────────────────────────────
 
 async def _screenshot_url(page, url: str) -> bytes:
-    """Navigate to url and return a screenshot."""
     await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
     await page.wait_for_timeout(4_000)
     await page.keyboard.press("Escape")
@@ -85,14 +116,14 @@ async def _get_instagram_data(page, reel_url: str):
     Returns (post_screenshot, thumbnail_screenshot, shortcode, dom_date, dom_view_count).
 
     Flow:
-      1. Load reel page. Use page.url AFTER navigation (handles Instagram redirects)
-         to get the real shortcode. Try to extract view count from JSON-LD structured
-         data or meta tags on the reel page — most reliable source.
-      2. Navigate to profile reels grid. Scroll to target thumbnail.
-         Also try DOM span text for view count (secondary source).
-         Crop the thumbnail screenshot (OCR fallback).
-      3. Click thumbnail — Instagram opens split view (full caption on right).
-      4. Extract date from DOM <time> (datetime attr or relative text like '1w').
+      1. Load reel page. Read page.url AFTER navigation (handles redirects).
+         Try JSON-LD / meta tags for view count on the reel page itself.
+      2. Navigate to profile reels grid. Find the grid thumbnail <a> that
+         contains an <img> (not a nav link). Crop its screenshot. Try DOM
+         span text for view count.
+      3. Click the grid thumbnail — Instagram opens the split view with the
+         full caption visible in the right panel.
+      4. Extract date from DOM <time> element; screenshot split view for caption.
     """
     # ── Step 1: load reel page ────────────────────────────────────────────────
     log.info("Instagram: loading reel page %s", reel_url[:80])
@@ -101,27 +132,22 @@ async def _get_instagram_data(page, reel_url: str):
     await page.keyboard.press("Escape")
     await page.wait_for_timeout(500)
 
-    # Use page.url AFTER navigation — Instagram sometimes redirects to a different
-    # shortcode and we must use the final URL to find the right grid thumbnail.
+    # Use page.url after navigation — Instagram may redirect to a different shortcode
     actual_url = page.url
-    log.debug("Instagram: actual URL after redirect = %s", actual_url[:100])
     sc_match = (_re.search(r"/reel(?:s)?/([^/?#]+)", actual_url) or
                 _re.search(r"/reel(?:s)?/([^/?#]+)", reel_url))
     shortcode = sc_match.group(1) if sc_match else reel_url.rstrip("/").split("/")[-1]
-    log.info("Instagram: shortcode = %s", shortcode)
+    log.info("Instagram: shortcode = %s  (from %s)", shortcode, actual_url[:60])
 
-    # SECURITY: validate shortcode before interpolating into JS
     if not _re.fullmatch(r"[A-Za-z0-9_\-]+", shortcode):
         log.error("Instagram: unsafe shortcode '%s' — aborting", shortcode)
         return await page.screenshot(full_page=False), None, shortcode, None, None
 
-    # ── Try view count from reel page JSON-LD or meta tags ────────────────────
-    # This is the most reliable source — structured data embedded in the page.
+    # Try view count from reel page JSON-LD (most reliable)
     dom_view_count = None
     try:
         raw_vc = await page.evaluate("""
             () => {
-                // 1. JSON-LD structured data (schema.org VideoObject)
                 for (const script of document.querySelectorAll(
                         'script[type="application/ld+json"]')) {
                     try {
@@ -133,12 +159,8 @@ async def _get_instagram_data(page, reel_url: str):
                                 return String(s.userInteractionCount);
                             }
                         }
-                        if (d.contentSize || d.viewCount) {
-                            return String(d.viewCount || d.contentSize);
-                        }
                     } catch {}
                 }
-                // 2. video:view_count meta tag
                 const meta = document.querySelector('meta[property="video:view_count"]');
                 if (meta) return meta.getAttribute('content');
                 return null;
@@ -146,19 +168,16 @@ async def _get_instagram_data(page, reel_url: str):
         """)
         dom_view_count = _parse_count_text(raw_vc)
         if dom_view_count is not None:
-            log.info("Instagram: reel page view count = %d (raw: %s)", dom_view_count, raw_vc)
-        else:
-            log.debug("Instagram: no view count in JSON-LD/meta (raw: %s)", raw_vc)
+            log.info("Instagram: reel-page view count = %d (raw: %s)", dom_view_count, raw_vc)
     except Exception as exc:
-        log.debug("Instagram: reel page view count failed: %s", exc)
+        log.debug("Instagram: reel-page view count failed: %s", exc)
 
-    # ── Find author profile reels URL ─────────────────────────────────────────
+    # Find author profile reels URL
     BLOCKED = {"reel", "reels", "explore", "accounts", "direct", "stories",
                "audio", "p", "tv", ""}
     profile_reels_url = await page.evaluate("""
         (blocked) => {
-            const links = Array.from(document.querySelectorAll('a[href]'));
-            for (const a of links) {
+            for (const a of document.querySelectorAll('a[href]')) {
                 const m = a.href.match(/instagram\\.com\\/([a-zA-Z0-9._]+)\\/reels\\//);
                 if (m && !blocked.includes(m[1])) return a.href.split('?')[0];
             }
@@ -180,23 +199,17 @@ async def _get_instagram_data(page, reel_url: str):
         await page.keyboard.press("Escape")
         await page.wait_for_timeout(500)
 
-        # Scroll until the target thumbnail appears (max ~60 reels)
+        find_js = _js_find_thumbnail(shortcode)
+
+        # Scroll until the target thumbnail is visible (max ~60 reels)
         found_reel = False
         for _ in range(15):
-            found = await page.evaluate(f"""
-                () => !!(
-                    document.querySelector('a[href*="/reel/{shortcode}/"]') ||
-                    document.querySelector('a[href*="/reels/{shortcode}/"]') ||
-                    document.querySelector('a[href*="/p/{shortcode}/"]')
-                )
-            """)
+            found = await page.evaluate(f"!!({find_js})")
             if found:
                 found_reel = True
                 await page.evaluate(f"""
                     () => {{
-                        const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
-                              || document.querySelector('a[href*="/reels/{shortcode}/"]')
-                              || document.querySelector('a[href*="/p/{shortcode}/"]');
+                        const el = {find_js};
                         if (el) el.scrollIntoView({{block: 'center'}});
                     }}
                 """)
@@ -206,19 +219,16 @@ async def _get_instagram_data(page, reel_url: str):
             await page.wait_for_timeout(800)
 
         if found_reel:
-            log.info("Instagram: found reel %s in grid", shortcode)
+            log.info("Instagram: found grid thumbnail for %s", shortcode)
 
-            # Try DOM view count from grid thumbnail (if reel page extraction failed)
+            # Try DOM span text inside just the thumbnail element (no parent search)
             if dom_view_count is None:
                 try:
                     raw_grid_vc = await page.evaluate(f"""
                         () => {{
-                            const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
-                                  || document.querySelector('a[href*="/reels/{shortcode}/"]')
-                                  || document.querySelector('a[href*="/p/{shortcode}/"]');
+                            const el = {find_js};
                             if (!el) return null;
-
-                            // aria-label on element or children (e.g. "21,600 plays")
+                            // aria-label on the element or its children
                             for (const e of [el, ...el.querySelectorAll('[aria-label]')]) {{
                                 const label = (e.getAttribute('aria-label') || '').toLowerCase();
                                 if (label.includes('play') || label.includes('view')) {{
@@ -226,11 +236,8 @@ async def _get_instagram_data(page, reel_url: str):
                                     if (m) return m[1];
                                 }}
                             }}
-
-                            // Also check parent element (count badge may be outside <a>)
-                            const parent = el.parentElement;
-                            const searchRoot = parent || el;
-                            for (const span of searchRoot.querySelectorAll('span')) {{
+                            // Span text inside the <a> element only (no parent bleed)
+                            for (const span of el.querySelectorAll('span')) {{
                                 const text = span.textContent.trim();
                                 if (/^[\\d.]+[KkMm]$/.test(text)) return text;
                                 if (/^\\d{{4,}}$/.test(text)) return text;
@@ -245,15 +252,13 @@ async def _get_instagram_data(page, reel_url: str):
                 except Exception as exc:
                     log.debug("Instagram: grid DOM view count failed: %s", exc)
 
-            # Crop screenshot of just the target thumbnail (OCR fallback)
+            # Crop screenshot of the target thumbnail (OCR fallback for view count)
             bbox = await page.evaluate(f"""
                 () => {{
-                    const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
-                          || document.querySelector('a[href*="/reels/{shortcode}/"]')
-                          || document.querySelector('a[href*="/p/{shortcode}/"]');
+                    const el = {find_js};
                     if (!el) return null;
-                    const rect = el.getBoundingClientRect();
-                    return {{x: rect.x, y: rect.y, width: rect.width, height: rect.height}};
+                    const r = el.getBoundingClientRect();
+                    return {{x: r.x, y: r.y, width: r.width, height: r.height}};
                 }}
             """)
             if bbox and bbox.get('width', 0) > 10:
@@ -275,9 +280,7 @@ async def _get_instagram_data(page, reel_url: str):
             log.info("Instagram: clicking thumbnail to open split post view")
             clicked = await page.evaluate(f"""
                 () => {{
-                    const el = document.querySelector('a[href*="/reel/{shortcode}/"]')
-                          || document.querySelector('a[href*="/reels/{shortcode}/"]')
-                          || document.querySelector('a[href*="/p/{shortcode}/"]');
+                    const el = {find_js};
                     if (el) {{ (el.querySelector('img') || el).click(); return true; }}
                     return false;
                 }}
@@ -285,7 +288,7 @@ async def _get_instagram_data(page, reel_url: str):
             if clicked:
                 await page.wait_for_timeout(3_000)
 
-                # ── Step 4: extract date, screenshot split view ────────────────
+                # ── Step 4: extract date + screenshot split view ───────────────
                 try:
                     await page.wait_for_selector('time', timeout=5_000)
                     date_info = await page.evaluate("""
@@ -301,8 +304,7 @@ async def _get_instagram_data(page, reel_url: str):
                     if date_info:
                         dom_date = (_parse_ig_date(date_info.get('datetime')) or
                                     _parse_ig_relative_date(date_info.get('text')))
-                        log.debug("Instagram: date_info=%s → dom_date=%s",
-                                  date_info, dom_date)
+                        log.info("Instagram: date_info=%s → dom_date=%s", date_info, dom_date)
                 except Exception as exc:
                     log.debug("Instagram: date extraction failed: %s", exc)
 
@@ -311,7 +313,7 @@ async def _get_instagram_data(page, reel_url: str):
             else:
                 log.warning("Instagram: could not click thumbnail")
         else:
-            log.warning("Instagram: reel %s not found in first 15 scrolls — "
+            log.warning("Instagram: reel %s not found in 15 scrolls — "
                         "falling back to top of grid", shortcode)
             await page.evaluate("window.scrollTo(0, 0)")
             await page.wait_for_timeout(800)
@@ -319,7 +321,7 @@ async def _get_instagram_data(page, reel_url: str):
             await page.wait_for_timeout(1_000)
             thumbnail_screenshot = await page.screenshot(full_page=False)
 
-    # Fallback: split-view click failed → use original reel page
+    # Fallback: split-view click didn't work → use direct reel page
     if post_screenshot is None:
         log.info("Instagram: falling back to direct reel page screenshot")
         await page.goto(reel_url, wait_until="domcontentloaded", timeout=45_000)
@@ -334,7 +336,6 @@ async def _get_instagram_data(page, reel_url: str):
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 def _release_firefox_lock():
-    """Remove the .parentlock file if no Playwright Firefox is running."""
     lock = FIREFOX_PROFILE_DIR / ".parentlock"
     if lock.exists():
         import subprocess
@@ -347,7 +348,6 @@ def _release_firefox_lock():
 
 
 async def _take_screenshot(url: str):
-    """Returns (main_ss, thumbnail_ss_or_None, dom_date_or_None, dom_view_count_or_None)."""
     _release_firefox_lock()
     async with async_playwright() as p:
         ctx = await p.firefox.launch_persistent_context(
@@ -356,7 +356,6 @@ async def _take_screenshot(url: str):
             viewport={"width": 1280, "height": 900},
         )
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-
         try:
             if "instagram.com" in url:
                 post_ss, thumb_ss, sc, dom_date, dom_vc = await _get_instagram_data(page, url)

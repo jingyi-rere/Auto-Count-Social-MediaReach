@@ -11,9 +11,10 @@ from lark_oapi.api.bitable.v1 import (
 )
 from src._env import *  # noqa: loads .env from project root
 
-FIELD_LINK  = os.getenv("LARK_FIELD_LINK",  "Link")
-FIELD_DATE  = os.getenv("LARK_FIELD_DATE",  "Date")
-FIELD_VIEWS = os.getenv("LARK_FIELD_VIEWS", "Reach")
+FIELD_LINK    = os.getenv("LARK_FIELD_LINK",    "Link")
+FIELD_DATE    = os.getenv("LARK_FIELD_DATE",    "Date")
+FIELD_VIEWS   = os.getenv("LARK_FIELD_VIEWS",   "Reach")
+FIELD_CAPTION = os.getenv("LARK_FIELD_CAPTION", "Title")
 
 
 def _extract_url(raw):
@@ -50,7 +51,7 @@ def _get_client():
             lark.Client.builder()
             .app_id(os.getenv("LARK_APP_ID"))
             .app_secret(os.getenv("LARK_APP_SECRET"))
-            .domain("https://open.larksuite.com")
+            .domain(os.getenv("LARK_DOMAIN", "https://open.larksuite.com"))
             .build()
         )
     return _client
@@ -111,6 +112,44 @@ def get_new_rows() -> list:
             if already_has_date and already_has_views:
                 continue
             rows.append((record.record_id, url))
+        if not data.has_more:
+            break
+        page_token = data.page_token
+    return rows
+
+
+def get_dated_rows_for_platforms(platforms: tuple) -> list:
+    """
+    Return rows where the Link matches one of the given platforms AND
+    both Date and Title (caption) are already filled.
+    Used for cross-platform date matching across watcher cycles.
+    Returns list of dicts: {url, date, caption}
+    """
+    from datetime import datetime
+    rows = []
+    page_token = None
+    while True:
+        data = _list_records(page_token)
+        for record in (data.items or []):
+            fields = record.fields
+            url = _extract_url(fields.get(FIELD_LINK, ""))
+            if not url:
+                continue
+            if not any(p in url.lower() for p in platforms):
+                continue
+            date_raw = fields.get(FIELD_DATE)
+            caption_raw = fields.get(FIELD_CAPTION, "")
+            if not date_raw or not caption_raw:
+                continue
+            try:
+                if isinstance(date_raw, (int, float)):
+                    # Lark stores dates as millisecond timestamps
+                    date_str = datetime.utcfromtimestamp(date_raw / 1000).strftime("%Y-%m-%d")
+                else:
+                    date_str = str(date_raw)[:10]
+            except Exception:
+                continue
+            rows.append({"url": url, "date": date_str, "caption": str(caption_raw).strip()})
         if not data.has_more:
             break
         page_token = data.page_token
