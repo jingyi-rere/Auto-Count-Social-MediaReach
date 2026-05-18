@@ -145,7 +145,7 @@ doc.add_paragraph()
 meta = doc.add_table(rows=5, cols=2)
 meta.alignment = WD_TABLE_ALIGNMENT.CENTER
 for i, (lbl, val) in enumerate([
-    ('Document Version:', '5.3'),
+    ('Document Version:', '5.4'),
     ('Date:', datetime.date.today().strftime('%d %B %Y')),
     ('Status:', 'Final'),
     ('Prepared By:', 'jingyi-rere'),
