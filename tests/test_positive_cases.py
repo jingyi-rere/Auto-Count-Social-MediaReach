@@ -4,6 +4,7 @@ POSITIVE TEST CASES — Auto-Count Social Media Reach
 All the things that SHOULD work correctly.
 Each test represents a real scenario the system will encounter.
 """
+
 import io
 import os
 import pytest
@@ -11,22 +12,28 @@ from unittest.mock import MagicMock, patch
 from PIL import Image
 
 # Set dummy credentials so modules load without real API keys
-os.environ.setdefault("LARK_APP_ID",       "test_id")
-os.environ.setdefault("LARK_APP_SECRET",   "test_secret")
-os.environ.setdefault("LARK_APP_TOKEN",    "test_token")
-os.environ.setdefault("LARK_TABLE_ID",     "test_table")
+os.environ.setdefault("LARK_APP_ID", "test_id")
+os.environ.setdefault("LARK_APP_SECRET", "test_secret")
+os.environ.setdefault("LARK_APP_TOKEN", "test_token")
+os.environ.setdefault("LARK_TABLE_ID", "test_table")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test_key")
 
-from src.lark_writer   import write_cell, write_row, _to_lark_timestamp, ALLOWED_COLUMNS
-from src.lark_reader   import _extract_url
-from src.vision_extract import _clean_caption, _compress_image, extract_from_screenshot, GRID_PROMPT
-from src.processor     import _route
+from src.lark_writer import write_cell, write_row, _to_lark_timestamp, ALLOWED_COLUMNS
+from src.lark_reader import _extract_url
+from src.vision_extract import (
+    _clean_caption,
+    _compress_image,
+    extract_from_screenshot,
+    GRID_PROMPT,
+)
+from src.processor import _route
 from src import lark_writer, vision_extract, processor, lark_reader
 
 
 # ══════════════════════════════════════════════════════════════
 # 1. URL EXTRACTION — _extract_url
 # ══════════════════════════════════════════════════════════════
+
 
 class TestPositiveExtractUrl:
 
@@ -59,7 +66,10 @@ class TestPositiveExtractUrl:
         assert _extract_url(url) == url
 
     def test_url_with_trailing_whitespace_stripped(self):
-        assert _extract_url("  https://youtube.com/watch?v=abc  ") == "https://youtube.com/watch?v=abc"
+        assert (
+            _extract_url("  https://youtube.com/watch?v=abc  ")
+            == "https://youtube.com/watch?v=abc"
+        )
 
     def test_xhslink_short_url(self):
         url = "https://xhslink.com/a/abc123"
@@ -69,6 +79,7 @@ class TestPositiveExtractUrl:
 # ══════════════════════════════════════════════════════════════
 # 2. DATE CONVERSION — _to_lark_timestamp
 # ══════════════════════════════════════════════════════════════
+
 
 class TestPositiveTimestamp:
 
@@ -108,10 +119,14 @@ class TestPositiveTimestamp:
 # 3. CAPTION CLEANING — _clean_caption
 # ══════════════════════════════════════════════════════════════
 
+
 class TestPositiveCleanCaption:
 
     def test_plain_english_caption(self):
-        assert _clean_caption("This is my video about cooking") == "This is my video about cooking"
+        assert (
+            _clean_caption("This is my video about cooking")
+            == "This is my video about cooking"
+        )
 
     def test_removes_single_hashtag(self):
         assert _clean_caption("Great video #fyp") == "Great video"
@@ -141,7 +156,10 @@ class TestPositiveCleanCaption:
         assert _clean_caption("hello    world") == "hello world"
 
     def test_caption_with_numbers(self):
-        assert _clean_caption("Top 10 ways to save money in 2024") == "Top 10 ways to save money in 2024"
+        assert (
+            _clean_caption("Top 10 ways to save money in 2024")
+            == "Top 10 ways to save money in 2024"
+        )
 
     def test_caption_with_punctuation(self):
         text = "Is this correct? Yes, it is!"
@@ -151,6 +169,7 @@ class TestPositiveCleanCaption:
 # ══════════════════════════════════════════════════════════════
 # 4. URL ROUTING — _route
 # ══════════════════════════════════════════════════════════════
+
 
 class TestPositiveRouting:
 
@@ -189,15 +208,20 @@ class TestPositiveRouting:
 # 5. COLUMN ALLOWLIST — write_cell
 # ══════════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def mock_lark_success(monkeypatch):
     mock_resp = MagicMock()
     mock_resp.success.return_value = True
     mock_update = MagicMock(return_value=mock_resp)
-    monkeypatch.setattr(lark_writer, "_get_client",
-        lambda: MagicMock(bitable=MagicMock(v1=MagicMock(
-            app_table_record=MagicMock(update=mock_update)
-        )))
+    monkeypatch.setattr(
+        lark_writer,
+        "_get_client",
+        lambda: MagicMock(
+            bitable=MagicMock(
+                v1=MagicMock(app_table_record=MagicMock(update=mock_update))
+            )
+        ),
     )
     return mock_update
 
@@ -260,6 +284,7 @@ class TestPositiveWriteRow:
 # 6. VISION EXTRACT — JSON parsing
 # ══════════════════════════════════════════════════════════════
 
+
 def _fake_png() -> bytes:
     img = Image.new("RGB", (100, 100), (255, 0, 0))
     buf = io.BytesIO()
@@ -278,60 +303,96 @@ def _mock_vision(json_text: str, monkeypatch):
 class TestPositiveVisionExtract:
 
     def test_clean_json_all_fields(self, monkeypatch):
-        _mock_vision('{"posted_date": "2024-03-01", "caption": "Hello world", "view_count": 5000}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": "2024-03-01", "caption": "Hello world", "view_count": 5000}',
+            monkeypatch,
+        )
         result = extract_from_screenshot(_fake_png())
-        assert result == {"posted_date": "2024-03-01", "caption": "Hello world", "view_count": 5000}
+        assert result == {
+            "posted_date": "2024-03-01",
+            "caption": "Hello world",
+            "view_count": 5000,
+        }
 
     def test_view_count_integer(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": "Test", "view_count": 132000}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": "Test", "view_count": 132000}',
+            monkeypatch,
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["view_count"] == 132000
         assert isinstance(result["view_count"], int)
 
     def test_view_count_as_string_converted(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": "Test", "view_count": "45300"}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": "Test", "view_count": "45300"}',
+            monkeypatch,
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["view_count"] == 45300
 
     def test_view_count_float_converted_to_int(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": "Test", "view_count": 1200.0}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": "Test", "view_count": 1200.0}',
+            monkeypatch,
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["view_count"] == 1200
         assert isinstance(result["view_count"], int)
 
     def test_single_quoted_json_parsed(self, monkeypatch):
-        _mock_vision("{'posted_date': '2024-06-01', 'caption': 'Hello', 'view_count': 999}", monkeypatch)
+        _mock_vision(
+            "{'posted_date': '2024-06-01', 'caption': 'Hello', 'view_count': 999}",
+            monkeypatch,
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["view_count"] == 999
 
     def test_json_inside_markdown_code_block(self, monkeypatch):
-        _mock_vision('```json\n{"posted_date": null, "caption": "Hi", "view_count": 50}\n```', monkeypatch)
+        _mock_vision(
+            '```json\n{"posted_date": null, "caption": "Hi", "view_count": 50}\n```',
+            monkeypatch,
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["view_count"] == 50
 
     def test_trailing_comma_handled(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": "Test", "view_count": 100,}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": "Test", "view_count": 100,}', monkeypatch
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["view_count"] == 100
 
     def test_grid_prompt_used_for_instagram_grid(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": "No caption", "view_count": 132000}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": "No caption", "view_count": 132000}',
+            monkeypatch,
+        )
         result = extract_from_screenshot(_fake_png(), prompt=GRID_PROMPT)
         assert result["view_count"] == 132000
 
     def test_hashtags_removed_from_caption(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": "Great #viral #fyp", "view_count": 100}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": "Great #viral #fyp", "view_count": 100}',
+            monkeypatch,
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["caption"] == "Great"
         assert "#" not in result["caption"]
 
     def test_large_million_view_count(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": "Viral", "view_count": 3400000}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": "Viral", "view_count": 3400000}',
+            monkeypatch,
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["view_count"] == 3_400_000
 
     def test_date_relative_string_kept_as_is(self, monkeypatch):
-        _mock_vision('{"posted_date": "3 days ago", "caption": "Test", "view_count": 100}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": "3 days ago", "caption": "Test", "view_count": 100}',
+            monkeypatch,
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["posted_date"] == "3 days ago"
 
@@ -340,7 +401,8 @@ class TestPositiveVisionExtract:
 # 7. LARK READER — get_new_rows filtering
 # ══════════════════════════════════════════════════════════════
 
-def _make_record(record_id, url, has_date=False, has_views=False):
+
+def _make_record(record_id, url, has_date=False, has_views=False, pic="TAN JING YI"):
     fields = {}
     if url:
         fields["Link"] = {"link": url, "text": url}
@@ -348,6 +410,8 @@ def _make_record(record_id, url, has_date=False, has_views=False):
         fields["Date"] = 1710460800000
     if has_views:
         fields["Reach"] = 50000
+    if pic is not None:
+        fields["PIC"] = [{"en_name": pic}]
     rec = MagicMock()
     rec.record_id = record_id
     rec.fields = fields
@@ -365,19 +429,32 @@ def _mock_records(records, monkeypatch):
 class TestPositiveGetNewRows:
 
     def test_new_youtube_row_returned(self, monkeypatch):
-        _mock_records([_make_record("rec1", "https://youtube.com/watch?v=abc")], monkeypatch)
+        _mock_records(
+            [_make_record("rec1", "https://youtube.com/watch?v=abc")], monkeypatch
+        )
         rows = lark_reader.get_new_rows()
         assert len(rows) == 1
         assert rows[0] == ("rec1", "https://youtube.com/watch?v=abc")
 
     def test_new_instagram_row_returned(self, monkeypatch):
-        _mock_records([_make_record("rec1", "https://instagram.com/reel/abc/")], monkeypatch)
+        _mock_records(
+            [_make_record("rec1", "https://instagram.com/reel/abc/")], monkeypatch
+        )
         rows = lark_reader.get_new_rows()
         assert len(rows) == 1
 
     def test_already_processed_row_skipped(self, monkeypatch):
-        _mock_records([_make_record("rec1", "https://youtube.com/watch?v=abc",
-                                   has_date=True, has_views=True)], monkeypatch)
+        _mock_records(
+            [
+                _make_record(
+                    "rec1",
+                    "https://youtube.com/watch?v=abc",
+                    has_date=True,
+                    has_views=True,
+                )
+            ],
+            monkeypatch,
+        )
         rows = lark_reader.get_new_rows()
         assert rows == []
 
@@ -392,14 +469,32 @@ class TestPositiveGetNewRows:
         assert len(rows) == 3
 
     def test_partial_fill_date_only_reprocessed(self, monkeypatch):
-        _mock_records([_make_record("rec1", "https://youtube.com/watch?v=abc",
-                                   has_date=True, has_views=False)], monkeypatch)
+        _mock_records(
+            [
+                _make_record(
+                    "rec1",
+                    "https://youtube.com/watch?v=abc",
+                    has_date=True,
+                    has_views=False,
+                )
+            ],
+            monkeypatch,
+        )
         rows = lark_reader.get_new_rows()
         assert len(rows) == 1
 
     def test_partial_fill_views_only_reprocessed(self, monkeypatch):
-        _mock_records([_make_record("rec1", "https://youtube.com/watch?v=abc",
-                                   has_date=False, has_views=True)], monkeypatch)
+        _mock_records(
+            [
+                _make_record(
+                    "rec1",
+                    "https://youtube.com/watch?v=abc",
+                    has_date=False,
+                    has_views=True,
+                )
+            ],
+            monkeypatch,
+        )
         rows = lark_reader.get_new_rows()
         assert len(rows) == 1
 
@@ -413,15 +508,26 @@ class TestPositiveGetNewRows:
 # 8. PROCESSOR — end-to-end flow (mocked)
 # ══════════════════════════════════════════════════════════════
 
+
 class TestPositiveProcessAll:
 
     def test_youtube_full_flow(self, monkeypatch):
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            ("rec1", "https://www.youtube.com/watch?v=test")
-        ])
-        monkeypatch.setattr(processor, "get_metadata", MagicMock(return_value={
-            "posted_date": "2024-03-15", "caption": "My video", "view_count": 1000
-        }))
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [("rec1", "https://www.youtube.com/watch?v=test")],
+        )
+        monkeypatch.setattr(
+            processor,
+            "get_metadata",
+            MagicMock(
+                return_value={
+                    "posted_date": "2024-03-15",
+                    "caption": "My video",
+                    "view_count": 1000,
+                }
+            ),
+        )
         mock_write = MagicMock()
         monkeypatch.setattr(processor, "write_row", mock_write)
         monkeypatch.setattr(processor, "get_screenshot", MagicMock())
@@ -433,19 +539,32 @@ class TestPositiveProcessAll:
         mock_write.assert_called_once()
 
     def test_instagram_merges_reel_and_grid_data(self, monkeypatch):
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            ("rec1", "https://www.instagram.com/reel/abc/")
-        ])
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [("rec1", "https://www.instagram.com/reel/abc/")],
+        )
         fake_split_ss = b"split_view"
         fake_reel_page_ss = b"reel_page"
-        monkeypatch.setattr(processor, "get_screenshot",
-                            MagicMock(return_value=(fake_split_ss, fake_reel_page_ss, None, None)))
+        monkeypatch.setattr(
+            processor,
+            "get_screenshot",
+            MagicMock(return_value=(fake_split_ss, fake_reel_page_ss, None, None)),
+        )
 
         def mock_extract(ss, prompt=None):
             # thumb_ss (reel page screenshot) → view count; main_ss → caption/date
             if ss == fake_reel_page_ss:
-                return {"posted_date": None, "caption": "No caption", "view_count": 21600}
-            return {"posted_date": "2024-03-15", "caption": "My reel caption", "view_count": None}
+                return {
+                    "posted_date": None,
+                    "caption": "No caption",
+                    "view_count": 21600,
+                }
+            return {
+                "posted_date": "2024-03-15",
+                "caption": "My reel caption",
+                "view_count": None,
+            }
 
         monkeypatch.setattr(processor, "extract_from_screenshot", mock_extract)
         mock_write = MagicMock()
@@ -453,8 +572,8 @@ class TestPositiveProcessAll:
         monkeypatch.setattr(processor, "get_metadata", MagicMock())
 
         results = processor.process_all()
-        assert results[0]["data"]["caption"] == "My reel caption"   # from split view
-        assert results[0]["data"]["view_count"] == 21600             # from reel page
+        assert results[0]["data"]["caption"] == "My reel caption"  # from split view
+        assert results[0]["data"]["view_count"] == 21600  # from reel page
 
     def test_no_rows_returns_empty_list(self, monkeypatch):
         monkeypatch.setattr(processor, "get_new_rows", lambda: [])
@@ -462,14 +581,26 @@ class TestPositiveProcessAll:
         assert results == []
 
     def test_multiple_urls_all_processed(self, monkeypatch):
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            ("rec1", "https://www.youtube.com/watch?v=aaa"),
-            ("rec2", "https://www.youtube.com/watch?v=bbb"),
-            ("rec3", "https://www.youtube.com/watch?v=ccc"),
-        ])
-        monkeypatch.setattr(processor, "get_metadata", MagicMock(return_value={
-            "posted_date": "2024-01-01", "caption": "Video", "view_count": 500
-        }))
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [
+                ("rec1", "https://www.youtube.com/watch?v=aaa"),
+                ("rec2", "https://www.youtube.com/watch?v=bbb"),
+                ("rec3", "https://www.youtube.com/watch?v=ccc"),
+            ],
+        )
+        monkeypatch.setattr(
+            processor,
+            "get_metadata",
+            MagicMock(
+                return_value={
+                    "posted_date": "2024-01-01",
+                    "caption": "Video",
+                    "view_count": 500,
+                }
+            ),
+        )
         monkeypatch.setattr(processor, "write_row", MagicMock())
         monkeypatch.setattr(processor, "get_screenshot", MagicMock())
 
