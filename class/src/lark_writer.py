@@ -47,7 +47,7 @@ def _get_client():
             lark.Client.builder()
             .app_id(os.getenv("LARK_APP_ID"))
             .app_secret(os.getenv("LARK_APP_SECRET"))
-            .domain(os.getenv("LARK_DOMAIN", "https://open.larksuite.com"))
+            .domain("https://open.larksuite.com")
             .build()
         )
     return _client
