@@ -858,7 +858,7 @@ regardless of platform, language, or UI version.
 4. For Instagram/RedNote: Firefox loads the page using saved login session
 5. Instagram: two-screenshot approach — reel page screenshot (before Escape) for caption+date; profile grid for view count
 6. RedNote: single screenshot of video page for all three fields
-7. Screenshot sent to Claude Haiku Vision → returns JSON {posted_date, caption, view_count}
+7. Screenshot sent to Claude Haiku Vision → returns JSON {{posted_date, caption, view_count}}
 8. Hashtags stripped with Unicode-aware regex
 9. Single atomic Lark API call writes A, D, E, G — with retry (3 attempts, 2s/4s/8s backoff)
 
