@@ -119,6 +119,8 @@ def get_new_rows() -> list:
         data = _list_records(page_token)
         for record in data.items or []:
             fields = record.fields
+            if not _pic_matches(fields.get(FIELD_PIC)):
+                continue
             url = _extract_url(fields.get(FIELD_LINK, ""))
             if not url:
                 continue
