@@ -384,13 +384,15 @@ make_table(doc,
          'System logs clear error: "Claude AI key is invalid or missing. Check ANTHROPIC_API_KEY". '
          'User tops up Anthropic credits (takes 2 minutes). '
          'yt-dlp path (YouTube/TikTok) continues working unaffected.'),
-        ('Vision extraction takes 3-4 min per Instagram URL — may miss <5 min promise',
+        ('Vision extraction takes 3-4 min per Instagram URL — batch of 5 takes ~15-20 min',
          MED,
-         'If a batch of 5+ Instagram URLs arrives together, total processing time may exceed 5 minutes. '
-         'The watcher runs every 3 minutes but each Vision call itself takes 2-4 minutes.',
-         'YouTube/TikTok (yt-dlp) complete in under 30 seconds — <5 min promise holds for those. '
-         'For Instagram/RedNote batches: the 5-minute SLA applies per URL, not per batch. '
-         'Single URL always processed in under 5 minutes. BRD AC-07 specifies "one URL at a time" for verification.'),
+         'If 5 Instagram URLs are pasted at once, total processing time is ~15-20 minutes. '
+         'The watcher runs every 3 minutes but each Vision call itself takes 2-4 minutes. '
+         'User will see Lark columns fill in one by one, not all at once.',
+         'YouTube/TikTok (yt-dlp) complete in under 30 seconds — unaffected. '
+         'For large Instagram/RedNote batches: paste in groups of 2-3 URLs rather than all at once, '
+         'or paste all and wait — the watcher will process them sequentially across multiple cycles. '
+         'Each individual URL is always done within 5 minutes of being picked up.'),
         ('Claude API cost at scale',
          LOW,
          'At current usage: ~10 Instagram/RedNote videos/week × 2 screenshots each × 52 weeks '
