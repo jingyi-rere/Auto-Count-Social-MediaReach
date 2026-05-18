@@ -3,6 +3,7 @@ lark_reader.py — Reads rows from Lark Bitable where the Link column has a URL.
 
 Returns (record_id, url) pairs for the processor to iterate over.
 """
+
 import os
 import lark_oapi as lark
 from lark_oapi.api.bitable.v1 import (
@@ -11,10 +12,26 @@ from lark_oapi.api.bitable.v1 import (
 )
 from src._env import *  # noqa: loads .env from project root
 
-FIELD_LINK    = os.getenv("LARK_FIELD_LINK",    "Link")
-FIELD_DATE    = os.getenv("LARK_FIELD_DATE",    "Date")
-FIELD_VIEWS   = os.getenv("LARK_FIELD_VIEWS",   "Reach")
+FIELD_LINK = os.getenv("LARK_FIELD_LINK", "Link")
+FIELD_DATE = os.getenv("LARK_FIELD_DATE", "Date")
+FIELD_VIEWS = os.getenv("LARK_FIELD_VIEWS", "Reach")
 FIELD_CAPTION = os.getenv("LARK_FIELD_CAPTION", "Title")
+FIELD_PIC = os.getenv("LARK_FIELD_PIC", "PIC")
+PIC_FILTER = os.getenv("LARK_PIC_FILTER", "")  # e.g. "TAN JING YI"
+
+
+def _pic_matches(raw) -> bool:
+    """Return True if the PIC field matches PIC_FILTER (or no filter is set)."""
+    if not PIC_FILTER:
+        return True
+    if not raw:
+        return False
+    users = raw if isinstance(raw, list) else [raw]
+    for u in users:
+        if isinstance(u, dict):
+            if PIC_FILTER.lower() in (u.get("en_name") or u.get("name") or "").lower():
+                return True
+    return False
 
 
 def _extract_url(raw):
@@ -40,6 +57,7 @@ def _extract_url(raw):
         val = str(first).strip()
         return val or None
     return None
+
 
 _client = None
 
@@ -70,9 +88,7 @@ def _list_records(page_token=None):
     response = _get_client().bitable.v1.app_table_record.list(builder.build())
 
     if not response.success():
-        raise RuntimeError(
-            f"Lark read error [{response.code}]: {response.msg}"
-        )
+        raise RuntimeError(f"Lark read error [{response.code}]: {response.msg}")
     return response.data
 
 
@@ -82,7 +98,7 @@ def get_rows_with_urls() -> list:
     page_token = None
     while True:
         data = _list_records(page_token)
-        for record in (data.items or []):
+        for record in data.items or []:
             url = _extract_url(record.fields.get(FIELD_LINK, ""))
             if url:
                 rows.append((record.record_id, url))
@@ -101,13 +117,13 @@ def get_new_rows() -> list:
     page_token = None
     while True:
         data = _list_records(page_token)
-        for record in (data.items or []):
+        for record in data.items or []:
             fields = record.fields
             url = _extract_url(fields.get(FIELD_LINK, ""))
             if not url:
                 continue
             # Skip if both date and views are already filled
-            already_has_date  = bool(fields.get(FIELD_DATE))
+            already_has_date = bool(fields.get(FIELD_DATE))
             already_has_views = bool(fields.get(FIELD_VIEWS))
             if already_has_date and already_has_views:
                 continue
@@ -126,11 +142,12 @@ def get_dated_rows_for_platforms(platforms: tuple) -> list:
     Returns list of dicts: {url, date, caption}
     """
     from datetime import datetime
+
     rows = []
     page_token = None
     while True:
         data = _list_records(page_token)
-        for record in (data.items or []):
+        for record in data.items or []:
             fields = record.fields
             url = _extract_url(fields.get(FIELD_LINK, ""))
             if not url:
@@ -144,12 +161,16 @@ def get_dated_rows_for_platforms(platforms: tuple) -> list:
             try:
                 if isinstance(date_raw, (int, float)):
                     # Lark stores dates as millisecond timestamps
-                    date_str = datetime.utcfromtimestamp(date_raw / 1000).strftime("%Y-%m-%d")
+                    date_str = datetime.utcfromtimestamp(date_raw / 1000).strftime(
+                        "%Y-%m-%d"
+                    )
                 else:
                     date_str = str(date_raw)[:10]
             except Exception:
                 continue
-            rows.append({"url": url, "date": date_str, "caption": str(caption_raw).strip()})
+            rows.append(
+                {"url": url, "date": date_str, "caption": str(caption_raw).strip()}
+            )
         if not data.has_more:
             break
         page_token = data.page_token
@@ -170,7 +191,5 @@ def get_all_field_names() -> list:
     response = _get_client().bitable.v1.app_table_field.list(request)
 
     if not response.success():
-        raise RuntimeError(
-            f"Lark field list error [{response.code}]: {response.msg}"
-        )
+        raise RuntimeError(f"Lark field list error [{response.code}]: {response.msg}")
     return [f.field_name for f in (response.data.items or [])]
