@@ -190,7 +190,8 @@ make_table(doc,
         ('3.0', '13 May 2026', 'jingyi-rere', 'Updated: watcher.py background daemon, yt-dlp for YouTube/TikTok, Firefox for Instagram/RedNote, single atomic Lark write, retry logic, shortcode security validation, startup env check, 283 tests, src/ module layout, structured logging'),
         ('3.1', '13 May 2026', 'jingyi-rere', 'Refined: architecture paragraph, step-by-step cohort timeline, tracking plan, risks and fallbacks per boss requirements'),
         ('3.2', '13 May 2026', 'jingyi-rere', 'Feedback fixes: added pytest validation evidence reference (283 passed, commit 6caf2b1), added Vision latency note to timing risk, added Claude API cost estimate to risks table'),
-        ('3.3', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Updated architecture: Instagram view count now from reel page screenshot taken before Escape (not profile grid), watcher interval reduced to 3 minutes, corrected system flow diagram and key design decisions'),
+        ('3.3', '18 May 2026', 'jingyi-rere', 'Updated architecture: Instagram view count now from reel page screenshot taken before Escape (not profile grid), watcher interval reduced to 3 minutes, corrected system flow diagram and key design decisions'),
+        ('3.4', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Feedback fixes: added reason for 3-min watcher interval, clarified 283 tests updated for Instagram architecture change, replaced vague latency SLA with concrete batch estimate (5 URLs = ~15-20 min)'),
     ],
     [0.7, 1.5, 1.5, 3.8]
 )
