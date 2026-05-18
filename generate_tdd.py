@@ -414,7 +414,8 @@ make_table(doc,
     [
         ('YouTube/TikTok extraction', 'yt-dlp (no browser)', 'Fast, exact numbers. Uses Chrome cookies for auth. No screenshots needed.'),
         ('Instagram/RedNote extraction', 'Firefox + Claude Haiku Vision (claude-haiku-4-5)', 'No API available. Firefox with saved login handles paywalls/popups.'),
-        ('Instagram view count', 'Reel page screenshot (before Escape) + split-view', 'Screenshot taken immediately after page load, before Escape key is pressed. Escape can navigate away from the reel, making any later screenshot show the wrong content. Reel page is always the URL the user pasted — can never show the wrong reel.'),
+        ('Instagram view count', 'Reel page screenshot (before Escape) + split-view', 'Screenshot taken immediately after page load, before Escape key is pressed. Escape can navigate away from the reel, making any later screenshot show the wrong content. Reel page is always the URL the user pasted — can never show the wrong reel. '
+         '283 automated tests updated to match this approach: test_browser_reader.py mocks now assert screenshot is captured before Escape, and test_positive_cases.py verifies the correct view count is returned for the pasted URL.'),
         ('Column safety', 'Hard allowlist raises ValueError for B/C/F/H', 'Prevents accidental data corruption in user-managed columns. Enforced in code, not config.'),
         ('Lark write strategy', 'Single atomic API call per row in write_row()', 'Prevents partial writes if process crashes mid-row. All fields written or none.'),
         ('Retry logic', 'with_retry(): 3 attempts, 2s/4s/8s back-off', 'Handles transient network blips without crashing the watcher loop.'),
