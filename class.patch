@@ -1,3 +1,541 @@
+diff --git a/BRD_Auto_Count_Social_Media_Reach.md b/BRD_Auto_Count_Social_Media_Reach.md
+new file mode 100644
+index 0000000..dcfe56d
+--- /dev/null
++++ b/BRD_Auto_Count_Social_Media_Reach.md
+@@ -0,0 +1,225 @@
++# Business Requirements Document
++## Auto Count Social Media Reach — AI-Assisted Video Metrics Automation System
++
++**Version:** 5.4 | **Date:** 18 May 2026 | **Status:** Final | **Prepared By:** jingyi-rere
++
++---
++
++## Version History
++
++| Version | Date | Author | Changes |
++|---------|------|--------|---------|
++| 5.0 | 13 May 2026 | jingyi-rere | Watcher daemon, yt-dlp, Firefox+Vision, 283 tests |
++| 5.1 | 13 May 2026 | jingyi-rere | Pain metrics, AI justification, 33 hrs/year value, AC-01–AC-10 |
++| 5.2 | 13 May 2026 | jingyi-rere | Phase 1/2 scope clarified, baseline 40 min/week, accuracy thresholds aligned |
++| 5.3 | 18 May 2026 | jingyi-rere | Instagram view count from reel screenshot before Escape; watcher 3 min |
++| 5.4 | 18 May 2026 | jingyi-rere | Defensive baseline note removed (stated upfront); Phase 2 moved to Appendix A |
++
++---
++
++## 1. Executive Summary
++
++A video content creator at ricebowlmy spends ~40 minutes every week manually collecting
++performance data (posted date, caption, view count) from 4 platforms (Instagram, YouTube,
++TikTok, RedNote) and typing it into Lark Bitable. This system eliminates that 40 minutes.
++
++The user pastes video URLs into Lark Column F. A background watcher detects new URLs within
++3 minutes and auto-fills: posted date (Column A), caption without hashtags (Column D),
++content type (Column E), and view count (Column G).
++
++Claude AI Vision is required — not optional — because Instagram, TikTok, and RedNote have
++no public API, block scrapers, and change UI regularly. Only Vision can read any screenshot
++regardless of platform, language, or UI version.
++
++**Projected outcome:** 38 minutes saved per week ≈ 33 hours per year, near-zero errors.
++
++---
++
++## 2. Hard Rules (NEVER Violate)
++
++| Rule | Description |
++|------|-------------|
++| RULE-01 | Only write to Lark columns A, D, E, G. Writing to B, C, F, H raises an exception. |
++| RULE-02 | Never overwrite Column F. User pastes URLs there — system never touches it. |
++| RULE-03 | Never append new rows. Always write into the existing row. |
++| RULE-04 | Strip ALL hashtags from caption (Unicode-aware) before writing to Column D. |
++| RULE-05 | Column E must always be exactly "Content Casual" — hardcoded, no exceptions. |
++
++---
++
++## 3. Problem Statement
++
++### 3.1 Time Breakdown (10 videos/week)
++
++| Task (per video) | Time | Specific Problem |
++|------------------|------|-----------------|
++| Open platform, find the video | ~1 min | Instagram grid paginated; RedNote UI in Chinese |
++| Read and copy the caption | ~1 min | Long captions, overlaid text |
++| Remove hashtags manually | ~1 min | 15–25 tags in EN/Malay/Chinese; easy to miss hidden tags |
++| Note the view count | ~30 sec | Instagram hides view counts on desktop |
++| Type data into Lark Bitable | ~30 sec | 4 fields, typos happen (10,000 → 1,000) |
++| **TOTAL per video** | **~4 min** | |
++| **TOTAL per week (10 videos)** | **~40 min** | 40 min of pure manual data entry every week |
++
++### 3.2 Why Simple Automation Cannot Solve This
++
++- Instagram, TikTok, RedNote have no public API for view counts
++- All three platforms actively block headless browsers and scrapers
++- UI layouts change without notice — hardcoded selectors break within days
++- Content is in multiple languages (EN, Malay, Chinese) — regex extraction fails
++- Only AI Vision can read any screenshot regardless of platform or UI version
++
++---
++
++## 4. Why AI (Not Just Automation)
++
++| Approach | Result |
++|----------|--------|
++| Platform APIs | Instagram and RedNote have no public API for view counts |
++| CSS scraping | Blocked by anti-bot measures; selectors change with every UI update |
++| yt-dlp (YouTube/TikTok only) | Works perfectly for YouTube and TikTok — used in this system |
++| Claude Vision (Instagram/RedNote) | Reads any screenshot regardless of language or UI version |
++
++---
++
++## 5. Quantified Value
++
++| Metric | Value |
++|--------|-------|
++| Time saved per video | ~4 minutes |
++| Videos per week | ~10 |
++| Time saved per week | ~38 minutes |
++| Weeks per year | 52 |
++| **Total hours saved per year** | **~33 hours** |
++| Error rate (manual) | ~5% typos/misreads |
++| Error rate (automated) | <1% (Vision occasionally misreads) |
++
++---
++
++## 6. Business Objectives
++
++- BO-01: Eliminate manual data entry for 4 platforms
++- BO-02: Auto-fill Lark Bitable within 3 minutes of URL paste
++- BO-03: Zero risk of overwriting user data (Column F, H protected)
++- BO-04: System must work without any platform API key
++- BO-05: Maintainable by a non-developer user (run.py one-command start)
++
++---
++
++## 7. User Stories
++
++| ID | As a… | I want… | So that… |
++|----|-------|---------|----------|
++| US-01 | Content creator | URLs auto-detected when pasted | I don't start a run manually per video |
++| US-02 | Content creator | Caption auto-cleaned of hashtags | I can search/filter captions in Lark |
++| US-03 | Content creator | View count filled automatically | I save 30 sec per video of platform navigation |
++| US-04 | Content creator | Posted date extracted correctly | My Lark timeline stays accurate |
++| US-05 | Content creator | System to never touch Column H | My manual calculations are never overwritten |
++
++---
++
++## 8. Lark Sheet Column Mapping
++
++| Column | Field | Written By | Notes |
++|--------|-------|-----------|-------|
++| A | Date | System | Posted date (YYYY-MM-DD) |
++| B | Title | User | NOT touched by system |
++| C | Content Type | User | NOT touched by system |
++| D | Caption | System | Hashtags stripped |
++| E | Content Type | System | Always "Content Casual" |
++| F | Link | User | URL pasted by user — NEVER overwritten |
++| G | Reach | System | View count as integer |
++| H | Final Reach | User | Manual calculation — NEVER touched |
++
++---
++
++## 9. How the System Works
++
++1. User pastes video URL into Column F of Lark Bitable
++2. watcher.py polls Lark every 3 minutes for rows where F has URL but A or G is empty
++3. For YouTube/TikTok: yt-dlp fetches title, date, view count (no browser needed, <10 sec)
++4. For Instagram/RedNote: Firefox loads the page using saved login session
++5. Instagram: two-screenshot approach — reel page screenshot (before Escape) for caption+date; profile grid for view count
++6. RedNote: single screenshot of video page for all three fields
++7. Screenshot sent to Claude Haiku Vision → returns JSON {posted_date, caption, view_count}
++8. Hashtags stripped with Unicode-aware regex
++9. Single atomic Lark API call writes A, D, E, G — with retry (3 attempts, 2s/4s/8s backoff)
++
++---
++
++## 10. Supported Platforms (Current Scope)
++
++| Platform | Method | Notes |
++|----------|--------|-------|
++| YouTube | yt-dlp | Exact numbers, no browser, <10 sec |
++| TikTok | yt-dlp | Exact numbers, no browser, <10 sec |
++| Instagram | Firefox + Claude Vision | Two-screenshot: reel page (before Escape) + profile grid |
++| RedNote | Firefox + Claude Vision | Single screenshot of video page |
++
++### Appendix A: Future Scope (Not Built)
++
++| Platform | Status | Blocker |
++|----------|--------|---------|
++| Facebook | Not built | No public API; login wall varies by account type |
++| X (Twitter) | Not built | API access requires paid tier |
++| Threads | Not built | No API; UI too new/unstable for reliable Vision |
++
++---
++
++## 11. Functional Requirements
++
++| ID | Requirement | Priority |
++|----|-------------|----------|
++| FR-01 | Detect new URLs in Column F within one watcher cycle (≤3 min) | Must Have |
++| FR-02 | Extract posted date, caption, view count for all 4 platforms | Must Have |
++| FR-03 | Strip all hashtags from caption before writing | Must Have |
++| FR-04 | Write to columns A, D, E, G only | Must Have |
++| FR-05 | Never overwrite existing data in A, D, E, G | Must Have |
++| FR-06 | Log all activity to logs/auto_count.log | Should Have |
++| FR-07 | Retry failed Lark writes up to 3 times | Should Have |
++| FR-08 | Display human-readable errors if extraction fails | Should Have |
++
++---
++
++## 12. Non-Functional Requirements
++
++| ID | Requirement | Target |
++|----|-------------|--------|
++| NFR-01 | Processing time per URL (YouTube/TikTok) | <10 seconds |
++| NFR-02 | Processing time per URL (Instagram/RedNote) | <3 minutes |
++| NFR-03 | View count accuracy | >99% for yt-dlp; >95% for Vision |
++| NFR-04 | System uptime | Runs until manually stopped |
++| NFR-05 | Test coverage | 283 automated tests, 0 failures |
++
++---
++
++## 13. Risk Register
++
++| Risk | Likelihood | Impact | Mitigation |
++|------|-----------|--------|-----------|
++| Instagram UI change | Medium | High | Vision reads screenshots — no CSS selectors to break |
++| Vision misreads number | Low | Medium | User spot-checks weekly; value is time-saving not 100% accuracy |
++| yt-dlp blocked | Low | High | Fallback: manual entry (unchanged from current process) |
++| Lark API rate limit | Low | Medium | Retry with exponential backoff |
++| Firefox login session expires | Medium | Medium | User re-logs in manually; session persists via profile |
++
++---
++
++## 16. Acceptance Criteria
++
++| ID | Criterion | Pass Condition |
++|----|-----------|---------------|
++| AC-01 | URL detection | New URL processed within 3 min of paste |
++| AC-02 | Date accuracy | Matches platform display date |
++| AC-03 | View count accuracy | Within 1% for yt-dlp; within 5% for Vision |
++| AC-04 | Caption accuracy | Exact caption minus hashtags |
++| AC-05 | Column protection | Columns B, C, F, H never written |
++| AC-06 | Hashtag removal | Zero hashtags remain in Column D |
++| AC-07 | Content type | Column E always "Content Casual" |
++| AC-08 | No duplicate writes | Row with existing A+G skipped |
++| AC-09 | Error logging | All failures written to log file |
++| AC-10 | PIC filter | Only processes rows where PIC = "TAN JING YI" |
++
++---
++
++*End of Document — Version 5.4*
+diff --git a/TDD_Auto_Count_Social_Media_Reach.md b/TDD_Auto_Count_Social_Media_Reach.md
+new file mode 100644
+index 0000000..4c44500
+--- /dev/null
++++ b/TDD_Auto_Count_Social_Media_Reach.md
+@@ -0,0 +1,301 @@
++# Technical Design Document
++## Auto Count Social Media Reach — AI-Assisted Video Metrics Automation System
++
++**Version:** 3.4 | **Date:** 18 May 2026 | **Status:** Final | **Prepared By:** jingyi-rere
++**Based On:** BRD v5.4
++
++---
++
++## Version History
++
++| Version | Date | Author | Changes |
++|---------|------|--------|---------|
++| 3.0 | 13 May 2026 | jingyi-rere | Watcher daemon, yt-dlp, Firefox+Vision, atomic Lark write, 283 tests |
++| 3.1 | 13 May 2026 | jingyi-rere | Architecture paragraph, cohort timeline, tracking plan, risks |
++| 3.2 | 13 May 2026 | jingyi-rere | Pytest evidence reference, Vision latency note, Claude API cost estimate |
++| 3.3 | 18 May 2026 | jingyi-rere | Instagram: reel page screenshot before Escape; watcher 3 min; flow diagram corrected |
++| 3.4 | 18 May 2026 | jingyi-rere | 3-min interval reason added; 283 tests updated for Instagram arch; latency = 5 URLs ~15-20 min |
++
++---
++
++## 1. System Overview
++
++The user pastes video URLs into Column F of Lark Bitable, then runs `python watcher.py` once.
++The watcher checks Lark every **3 minutes** for new URLs and processes them automatically.
++
++**Why 3 minutes:** Reduced from 5 minutes after observing that Instagram + Vision processing
++takes 2–4 minutes per URL. A 5-minute interval meant the next check fired before the current
++batch finished logging.
++
++Each URL is routed to the best extraction method:
++- **yt-dlp** (YouTube, TikTok): fast, exact numbers, no browser needed
++- **Firefox + Claude Haiku Vision** (Instagram, RedNote): persistent login session + screenshot
++
++All extracted data is written to columns A, D, E, G in a single atomic Lark API call.
++A hard allowlist in `lark_writer.py` ensures no other columns can ever be written to.
++
++---
++
++## 1.0 Architecture & Approach
++
++**Two-track extraction pipeline:**
++
++**Track 1 — YouTube / TikTok (yt-dlp)**
++- Passes URL to yt-dlp; retrieves title, upload date, view count from platform CDN metadata
++- No browser launched; under 10 seconds per video
++- Exact numbers — no Vision needed
++
++**Track 2 — Instagram / RedNote (Firefox + Claude Vision)**
++- Persistent Firefox context (Playwright) with saved login session
++- Dismisses popups, loads real page
++- **Instagram two-screenshot approach:**
++  1. Navigate to reel URL → capture screenshot AND `page.url` BEFORE pressing Escape
++     (Escape can close the viewer and change `page.url` to the profile grid)
++  2. Navigate to profile reels grid → capture screenshot for view count
++     (view count only visible on desktop profile grid, not on reel page itself)
++  3. Send both screenshots to Claude Haiku Vision for extraction
++- **RedNote:** single screenshot of video page → send to Vision
++- Each screenshot compressed to <4.5MB if needed
++- Vision returns JSON: `{posted_date, caption, view_count}`
++
++**Post-extraction:**
++- Strip all hashtags (Unicode-aware regex — handles EN, Malay, Chinese, emoji tags)
++- Single atomic Lark API call: write A, D, E, G
++- Retry: 3 attempts with 2s / 4s / 8s exponential backoff
++- Log all activity to `logs/auto_count.log`
++
++---
++
++## 1.1 Key Design Decisions
++
++| Decision | Choice | Reason |
++|----------|--------|--------|
++| YouTube/TikTok extraction | yt-dlp | Exact numbers, no browser, <10 sec — no Vision needed |
++| Instagram/RedNote extraction | Firefox + Claude Haiku Vision | No public API; scraping blocked; UI changes break selectors |
++| Instagram view count location | Profile reels grid (not reel page) | View count only visible on desktop grid, not on reel page |
++| Screenshot timing (Instagram) | Before Escape key | Escape can close viewer and change page.url to profile grid — URL/screenshot must match |
++| Vision model | claude-haiku-4-5 | Sufficient accuracy for numbers/dates; faster and cheaper than Sonnet |
++| Watcher interval | 3 minutes | Instagram+Vision takes 2–4 min/URL; 5-min interval caused log overlap |
++| Column allowlist | Hard exception in code | Prevents any future bug from writing to wrong column |
++| PIC filter | LARK_PIC_FILTER env var | Shared Lark table — only process rows where PIC = "TAN JING YI" |
++
++**Test coverage for Instagram architecture:**
++283 automated tests updated to match the two-screenshot approach.
++`test_browser_reader.py` mocks assert that the reel page screenshot is captured before Escape,
++and that `page.url` is read immediately after `goto()` returns.
++
++---
++
++## 2. System Architecture
++
++### 2.1 Component Overview
++
++```
++watcher.py (daemon, every 3 min)
++    └── lark_reader.py      → fetch rows where F has URL, A or G empty, PIC = TAN JING YI
++    └── processor.py        → route URL to correct extractor
++         ├── metadata_reader.py  → yt-dlp (YouTube, TikTok)
++         └── browser_reader.py   → Firefox + Vision (Instagram, RedNote)
++              └── vision_extract.py  → Claude Haiku API (screenshots → JSON)
++    └── lark_writer.py      → write A, D, E, G (hard allowlist enforced)
++    └── reporter.py         → log summary to console
++    └── logger.py           → rotating log file
++```
++
++### 2.2 System Flow
++
++```
++User pastes URL into Column F
++         ↓
++watcher.py polls every 3 min
++         ↓
++lark_reader.get_new_rows() → [(record_id, url), ...]
++         ↓
++processor.process(record_id, url)
++         ↓
++     Is YouTube or TikTok?
++    /                    \
++  YES                    NO (Instagram/RedNote)
++   ↓                      ↓
++yt-dlp                 browser_reader.py
++(title, date,          Firefox opens URL
++ view_count)           Takes screenshot(s)
++                       For Instagram:
++                         1. Reel page → screenshot BEFORE Escape
++                         2. Profile grid → screenshot for view count
++                       vision_extract.py → Claude Haiku
++                         (screenshot → JSON)
++         \                /
++          processor merges result
++                  ↓
++         strip hashtags (Unicode regex)
++                  ↓
++         lark_writer.write_row(record_id, date, caption, view_count)
++         (single atomic API call — columns A, D, E, G only)
++                  ↓
++         logger + reporter
++```
++
++---
++
++## 3. Technology Stack
++
++| Component | Technology | Version |
++|-----------|-----------|---------|
++| Browser automation | Playwright (Firefox) | 1.44.0 |
++| YouTube/TikTok extraction | yt-dlp | latest |
++| Vision AI | Claude Haiku (claude-haiku-4-5) | via Anthropic API |
++| Lark integration | lark-oapi | 1.3.5 |
++| Environment config | python-dotenv | 1.0.1 |
++| Test framework | pytest | 8.2.0 |
++| Language | Python | 3.9+ |
++
++---
++
++## 4. Detailed Component Design
++
++### 4.1 lark_reader.py
++
++- `get_new_rows()`: returns rows where Column F has URL but Column A or G is empty
++- `_pic_matches()`: filters by PIC field — only returns rows where PIC = LARK_PIC_FILTER ("TAN JING YI")
++- `_extract_url()`: handles plain string / dict / list-of-dicts URL formats from Lark API
++- Pagination: handles Lark's page_token for tables >100 rows
++
++### 4.2 lark_writer.py — Hard Column Allowlist
++
++```python
++ALLOWED_COLUMNS = {FIELD_DATE, FIELD_CAPTION, FIELD_CONTENT_TYPE, FIELD_VIEWS}
++
++def write_row(record_id, **kwargs):
++    for key in kwargs:
++        if key not in ALLOWED_COLUMNS:
++            raise ValueError(f"Column '{key}' is not in the write allowlist")
++```
++
++Tested by `tests/test_lark_writer.py` — 11 tests covering every allowed and disallowed column.
++
++### 4.3 browser_reader.py — Instagram Key Logic
++
++```python
++async def extract_instagram(url):
++    await page.goto(url)
++    # CRITICAL: capture before any keyboard action
++    # Escape can close the reel viewer and navigate away
++    reel_url = page.url          # captured immediately after goto()
++    reel_screenshot = screenshot()  # captured before pressing Escape
++
++    # Navigate to profile grid for view count
++    profile_url = build_profile_reels_url(reel_url)
++    await page.goto(profile_url)
++    grid_screenshot = screenshot()
++
++    return await vision_extract(reel_screenshot, grid_screenshot)
++```
++
++### 4.4 vision_extract.py
++
++- Sends screenshot(s) to Claude Haiku (`claude-haiku-4-5`) via Anthropic API
++- Compresses image to <4.5MB if needed (base64 overhead limit)
++- Structured prompt returns JSON: `{posted_date, caption, view_count}`
++- Validates response structure before returning
++
++### 4.5 processor.py
++
++- Routes URL: `youtube.com` / `youtu.be` / `tiktok.com` → yt-dlp; others → browser
++- Strips hashtags: `re.sub(r'#[\w\u00C0-\u024F\u4e00-\u9fff]+', '', caption)`
++- Merges results and calls `lark_writer.write_row()`
++
++---
++
++## 5. Data Flow
++
++```
++Input:  Lark Column F URL (string)
++            ↓
++        URL router (processor.py)
++            ↓
++Track 1: yt-dlp → dict{title, upload_date, view_count}
++Track 2: Firefox → screenshot(s) → Claude Vision → dict{posted_date, caption, view_count}
++            ↓
++        Hashtag strip (Unicode regex)
++            ↓
++Output: Lark write → Column A (date), D (caption), E ("Content Casual"), G (view count)
++```
++
++---
++
++## 6. Column Allowlist Enforcement
++
++Hard exception raised for any write attempt outside {A, D, E, G}:
++- Tested: `test_write_to_B_raises`, `test_write_to_C_raises`, `test_write_to_F_raises`, `test_write_to_H_raises`
++- Confirmed safe: `test_write_to_A_succeeds`, `test_write_to_D_succeeds`, `test_write_to_E_succeeds`, `test_write_to_G_succeeds`
++
++---
++
++## 8. Claude Vision Integration
++
++- Model: `claude-haiku-4-5` (not Sonnet — sufficient for numbers/dates, 3× cheaper)
++- Input: base64-encoded PNG/JPEG screenshot, <4.5MB
++- Prompt: structured JSON extraction prompt with field definitions
++- Output: `{posted_date: "YYYY-MM-DD", caption: "...", view_count: 12345}`
++- Latency: ~2–4 minutes per Instagram URL (Vision API + browser load)
++- **Batch estimate:** 5 Instagram URLs ≈ 15–20 minutes total
++  For large batches, run the watcher during a break; don't wait at the terminal
++
++---
++
++## 9. Error Handling
++
++| Error | Handling |
++|-------|---------|
++| Vision returns malformed JSON | Retry once; log error; skip row |
++| yt-dlp extraction fails | Log error; skip row; retry next cycle |
++| Lark API error | Retry 3× with exponential backoff (2s/4s/8s) |
++| Firefox login expired | Friendly error: "Please log in to Instagram again" |
++| URL not recognized | Skip with log: "Unknown platform for URL: ..." |
++| Screenshot too large | Auto-compress to <4.5MB before sending |
++
++---
++
++## 10. Security Design
++
++- API keys loaded from `.env` via `python-dotenv` — never hardcoded
++- Instagram shortcode validated against allowlist (alphanumeric + underscore + hyphen only)
++- Prompt-injection resistance: Vision prompt is system-defined, user data is image only
++- Column allowlist prevents injection via Lark field names
++- `.env` is git-ignored; `.env.template` (no secrets) committed instead
++
++---
++
++## 13. Testing Plan
++
++| File | Tests | Coverage |
++|------|-------|---------|
++| test_positive_cases.py | 47 | Happy path for all 4 platforms |
++| test_negative_cases.py | 55 | Invalid URLs, empty fields, malformed Vision response |
++| test_browser_reader.py | 38 | Instagram two-screenshot flow; screenshot before Escape |
++| test_vision_extract.py | 28 | Vision response parsing, compression, retry |
++| test_processor.py | 22 | URL routing, hashtag stripping |
++| test_lark_writer.py | 11 | Column allowlist enforcement |
++| test_lark_writer_extended.py | 18 | Timestamp conversion, date edge cases |
++| test_lark_reader.py | 14 | PIC filter, URL extraction, pagination |
++| test_security.py | 24 | Shortcode validation, prompt injection, env secrets |
++| test_performance.py | 14 | Latency thresholds, token cost |
++| test_uiux.py | 12 | Field formatting, date format, caption truncation |
++| **TOTAL** | **283** | All mocked — no real network calls |
++
++---
++
++## 14. requirements.txt (Pinned)
++
++```
++playwright==1.44.0
++anthropic==0.28.0
++lark-oapi==1.3.5
++python-dotenv==1.0.1
++pytest==8.2.0
++```
++
++---
++
++*End of Document — Version 3.4*
 diff --git a/discover.py b/discover.py
 new file mode 100644
 index 0000000..43dcd11
@@ -1727,40 +2265,632 @@ index ac1a6e7..8fe2d9b 100644
  
  Respond ONLY with valid JSON — no explanation, no markdown:
  {"posted_date": null, "caption": "No caption", "view_count": 12345}
+diff --git a/tests/test_lark_reader.py b/tests/test_lark_reader.py
+index 29c2730..c58ac5c 100644
+--- a/tests/test_lark_reader.py
++++ b/tests/test_lark_reader.py
+@@ -4,14 +4,15 @@ Tests for lark_reader.py
+ Verifies get_new_rows() filtering logic — rows that already have
+ Date AND Reach filled should be skipped.
+ """
++
+ import os
+ import pytest
+ from unittest.mock import MagicMock, patch
+ 
+-os.environ.setdefault("LARK_APP_ID",     "test_app_id")
++os.environ.setdefault("LARK_APP_ID", "test_app_id")
+ os.environ.setdefault("LARK_APP_SECRET", "test_secret")
+-os.environ.setdefault("LARK_APP_TOKEN",  "test_token")
+-os.environ.setdefault("LARK_TABLE_ID",   "test_table")
++os.environ.setdefault("LARK_APP_TOKEN", "test_token")
++os.environ.setdefault("LARK_TABLE_ID", "test_table")
+ 
+ from src import lark_reader
+ from src.lark_reader import _extract_url
+@@ -19,9 +20,13 @@ from src.lark_reader import _extract_url
+ 
+ # ── _extract_url ────────────────────────────────────────────────
+ 
++
+ class TestExtractUrl:
+     def test_plain_string_url(self):
+-        assert _extract_url("https://youtube.com/watch?v=abc") == "https://youtube.com/watch?v=abc"
++        assert (
++            _extract_url("https://youtube.com/watch?v=abc")
++            == "https://youtube.com/watch?v=abc"
++        )
+ 
+     def test_lark_dict_format(self):
+         field = {"link": "https://instagram.com/reel/abc/", "text": "View reel"}
+@@ -49,7 +54,8 @@ class TestExtractUrl:
+ 
+ # ── get_new_rows filtering ───────────────────────────────────────
+ 
+-def _make_record(record_id, url, has_date=False, has_views=False):
++
++def _make_record(record_id, url, has_date=False, has_views=False, pic="TAN JING YI"):
+     """Helper to build a mock Lark record."""
+     fields = {}
+     if url:
+@@ -58,6 +64,8 @@ def _make_record(record_id, url, has_date=False, has_views=False):
+         fields["Date"] = 1710460800000  # some timestamp
+     if has_views:
+         fields["Reach"] = 50000
++    if pic is not None:
++        fields["PIC"] = [{"en_name": pic}]
+ 
+     rec = MagicMock()
+     rec.record_id = record_id
+@@ -77,60 +85,84 @@ def _mock_list_records(records):
+ class TestGetNewRows:
+     def test_returns_row_with_url_but_no_date_or_views(self, monkeypatch):
+         records = [_make_record("rec1", "https://youtube.com/watch?v=abc")]
+-        monkeypatch.setattr(lark_reader, "_list_records",
+-                            lambda pt: _mock_list_records(records))
++        monkeypatch.setattr(
++            lark_reader, "_list_records", lambda pt: _mock_list_records(records)
++        )
+ 
+         rows = lark_reader.get_new_rows()
+         assert len(rows) == 1
+         assert rows[0] == ("rec1", "https://youtube.com/watch?v=abc")
+ 
+     def test_skips_row_with_both_date_and_views(self, monkeypatch):
+-        records = [_make_record("rec1", "https://youtube.com/watch?v=abc",
+-                                has_date=True, has_views=True)]
+-        monkeypatch.setattr(lark_reader, "_list_records",
+-                            lambda pt: _mock_list_records(records))
++        records = [
++            _make_record(
++                "rec1", "https://youtube.com/watch?v=abc", has_date=True, has_views=True
++            )
++        ]
++        monkeypatch.setattr(
++            lark_reader, "_list_records", lambda pt: _mock_list_records(records)
++        )
+ 
+         rows = lark_reader.get_new_rows()
+         assert rows == []
+ 
+     def test_includes_row_with_date_but_no_views(self, monkeypatch):
+         """Partial fill (only date) → still needs processing."""
+-        records = [_make_record("rec1", "https://youtube.com/watch?v=abc",
+-                                has_date=True, has_views=False)]
+-        monkeypatch.setattr(lark_reader, "_list_records",
+-                            lambda pt: _mock_list_records(records))
++        records = [
++            _make_record(
++                "rec1",
++                "https://youtube.com/watch?v=abc",
++                has_date=True,
++                has_views=False,
++            )
++        ]
++        monkeypatch.setattr(
++            lark_reader, "_list_records", lambda pt: _mock_list_records(records)
++        )
+ 
+         rows = lark_reader.get_new_rows()
+         assert len(rows) == 1
+ 
+     def test_includes_row_with_views_but_no_date(self, monkeypatch):
+         """Partial fill (only views) → still needs processing."""
+-        records = [_make_record("rec1", "https://youtube.com/watch?v=abc",
+-                                has_date=False, has_views=True)]
+-        monkeypatch.setattr(lark_reader, "_list_records",
+-                            lambda pt: _mock_list_records(records))
++        records = [
++            _make_record(
++                "rec1",
++                "https://youtube.com/watch?v=abc",
++                has_date=False,
++                has_views=True,
++            )
++        ]
++        monkeypatch.setattr(
++            lark_reader, "_list_records", lambda pt: _mock_list_records(records)
++        )
+ 
+         rows = lark_reader.get_new_rows()
+         assert len(rows) == 1
+ 
+     def test_skips_row_without_url(self, monkeypatch):
+         records = [_make_record("rec1", url=None)]
+-        monkeypatch.setattr(lark_reader, "_list_records",
+-                            lambda pt: _mock_list_records(records))
++        monkeypatch.setattr(
++            lark_reader, "_list_records", lambda pt: _mock_list_records(records)
++        )
+ 
+         rows = lark_reader.get_new_rows()
+         assert rows == []
+ 
+     def test_mixed_rows_returns_only_unprocessed(self, monkeypatch):
+         records = [
+-            _make_record("rec1", "https://youtube.com/watch?v=new"),           # needs processing
+-            _make_record("rec2", "https://instagram.com/reel/abc/",
+-                         has_date=True, has_views=True),                        # skip — done
+-            _make_record("rec3", "https://tiktok.com/@user/video/123"),        # needs processing
+-            _make_record("rec4", url=None),                                    # skip — no URL
++            _make_record("rec1", "https://youtube.com/watch?v=new"),  # needs processing
++            _make_record(
++                "rec2", "https://instagram.com/reel/abc/", has_date=True, has_views=True
++            ),  # skip — done
++            _make_record(
++                "rec3", "https://tiktok.com/@user/video/123"
++            ),  # needs processing
++            _make_record("rec4", url=None),  # skip — no URL
+         ]
+-        monkeypatch.setattr(lark_reader, "_list_records",
+-                            lambda pt: _mock_list_records(records))
++        monkeypatch.setattr(
++            lark_reader, "_list_records", lambda pt: _mock_list_records(records)
++        )
+ 
+         rows = lark_reader.get_new_rows()
+         ids = [r[0] for r in rows]
 diff --git a/tests/test_positive_cases.py b/tests/test_positive_cases.py
-index bdba429..ab435a9 100644
+index bdba429..0686d55 100644
 --- a/tests/test_positive_cases.py
 +++ b/tests/test_positive_cases.py
-@@ -436,12 +436,15 @@ class TestPositiveProcessAll:
-         monkeypatch.setattr(processor, "get_new_rows", lambda: [
-             ("rec1", "https://www.instagram.com/reel/abc/")
-         ])
+@@ -4,6 +4,7 @@ POSITIVE TEST CASES — Auto-Count Social Media Reach
+ All the things that SHOULD work correctly.
+ Each test represents a real scenario the system will encounter.
+ """
++
+ import io
+ import os
+ import pytest
+@@ -11,16 +12,21 @@ from unittest.mock import MagicMock, patch
+ from PIL import Image
+ 
+ # Set dummy credentials so modules load without real API keys
+-os.environ.setdefault("LARK_APP_ID",       "test_id")
+-os.environ.setdefault("LARK_APP_SECRET",   "test_secret")
+-os.environ.setdefault("LARK_APP_TOKEN",    "test_token")
+-os.environ.setdefault("LARK_TABLE_ID",     "test_table")
++os.environ.setdefault("LARK_APP_ID", "test_id")
++os.environ.setdefault("LARK_APP_SECRET", "test_secret")
++os.environ.setdefault("LARK_APP_TOKEN", "test_token")
++os.environ.setdefault("LARK_TABLE_ID", "test_table")
+ os.environ.setdefault("ANTHROPIC_API_KEY", "test_key")
+ 
+-from src.lark_writer   import write_cell, write_row, _to_lark_timestamp, ALLOWED_COLUMNS
+-from src.lark_reader   import _extract_url
+-from src.vision_extract import _clean_caption, _compress_image, extract_from_screenshot, GRID_PROMPT
+-from src.processor     import _route
++from src.lark_writer import write_cell, write_row, _to_lark_timestamp, ALLOWED_COLUMNS
++from src.lark_reader import _extract_url
++from src.vision_extract import (
++    _clean_caption,
++    _compress_image,
++    extract_from_screenshot,
++    GRID_PROMPT,
++)
++from src.processor import _route
+ from src import lark_writer, vision_extract, processor, lark_reader
+ 
+ 
+@@ -28,6 +34,7 @@ from src import lark_writer, vision_extract, processor, lark_reader
+ # 1. URL EXTRACTION — _extract_url
+ # ══════════════════════════════════════════════════════════════
+ 
++
+ class TestPositiveExtractUrl:
+ 
+     def test_plain_youtube_url(self):
+@@ -59,7 +66,10 @@ class TestPositiveExtractUrl:
+         assert _extract_url(url) == url
+ 
+     def test_url_with_trailing_whitespace_stripped(self):
+-        assert _extract_url("  https://youtube.com/watch?v=abc  ") == "https://youtube.com/watch?v=abc"
++        assert (
++            _extract_url("  https://youtube.com/watch?v=abc  ")
++            == "https://youtube.com/watch?v=abc"
++        )
+ 
+     def test_xhslink_short_url(self):
+         url = "https://xhslink.com/a/abc123"
+@@ -70,6 +80,7 @@ class TestPositiveExtractUrl:
+ # 2. DATE CONVERSION — _to_lark_timestamp
+ # ══════════════════════════════════════════════════════════════
+ 
++
+ class TestPositiveTimestamp:
+ 
+     def test_standard_iso_date(self):
+@@ -108,10 +119,14 @@ class TestPositiveTimestamp:
+ # 3. CAPTION CLEANING — _clean_caption
+ # ══════════════════════════════════════════════════════════════
+ 
++
+ class TestPositiveCleanCaption:
+ 
+     def test_plain_english_caption(self):
+-        assert _clean_caption("This is my video about cooking") == "This is my video about cooking"
++        assert (
++            _clean_caption("This is my video about cooking")
++            == "This is my video about cooking"
++        )
+ 
+     def test_removes_single_hashtag(self):
+         assert _clean_caption("Great video #fyp") == "Great video"
+@@ -141,7 +156,10 @@ class TestPositiveCleanCaption:
+         assert _clean_caption("hello    world") == "hello world"
+ 
+     def test_caption_with_numbers(self):
+-        assert _clean_caption("Top 10 ways to save money in 2024") == "Top 10 ways to save money in 2024"
++        assert (
++            _clean_caption("Top 10 ways to save money in 2024")
++            == "Top 10 ways to save money in 2024"
++        )
+ 
+     def test_caption_with_punctuation(self):
+         text = "Is this correct? Yes, it is!"
+@@ -152,6 +170,7 @@ class TestPositiveCleanCaption:
+ # 4. URL ROUTING — _route
+ # ══════════════════════════════════════════════════════════════
+ 
++
+ class TestPositiveRouting:
+ 
+     def test_youtube_standard(self):
+@@ -189,15 +208,20 @@ class TestPositiveRouting:
+ # 5. COLUMN ALLOWLIST — write_cell
+ # ══════════════════════════════════════════════════════════════
+ 
++
+ @pytest.fixture
+ def mock_lark_success(monkeypatch):
+     mock_resp = MagicMock()
+     mock_resp.success.return_value = True
+     mock_update = MagicMock(return_value=mock_resp)
+-    monkeypatch.setattr(lark_writer, "_get_client",
+-        lambda: MagicMock(bitable=MagicMock(v1=MagicMock(
+-            app_table_record=MagicMock(update=mock_update)
+-        )))
++    monkeypatch.setattr(
++        lark_writer,
++        "_get_client",
++        lambda: MagicMock(
++            bitable=MagicMock(
++                v1=MagicMock(app_table_record=MagicMock(update=mock_update))
++            )
++        ),
+     )
+     return mock_update
+ 
+@@ -260,6 +284,7 @@ class TestPositiveWriteRow:
+ # 6. VISION EXTRACT — JSON parsing
+ # ══════════════════════════════════════════════════════════════
+ 
++
+ def _fake_png() -> bytes:
+     img = Image.new("RGB", (100, 100), (255, 0, 0))
+     buf = io.BytesIO()
+@@ -278,60 +303,96 @@ def _mock_vision(json_text: str, monkeypatch):
+ class TestPositiveVisionExtract:
+ 
+     def test_clean_json_all_fields(self, monkeypatch):
+-        _mock_vision('{"posted_date": "2024-03-01", "caption": "Hello world", "view_count": 5000}', monkeypatch)
++        _mock_vision(
++            '{"posted_date": "2024-03-01", "caption": "Hello world", "view_count": 5000}',
++            monkeypatch,
++        )
+         result = extract_from_screenshot(_fake_png())
+-        assert result == {"posted_date": "2024-03-01", "caption": "Hello world", "view_count": 5000}
++        assert result == {
++            "posted_date": "2024-03-01",
++            "caption": "Hello world",
++            "view_count": 5000,
++        }
+ 
+     def test_view_count_integer(self, monkeypatch):
+-        _mock_vision('{"posted_date": null, "caption": "Test", "view_count": 132000}', monkeypatch)
++        _mock_vision(
++            '{"posted_date": null, "caption": "Test", "view_count": 132000}',
++            monkeypatch,
++        )
+         result = extract_from_screenshot(_fake_png())
+         assert result["view_count"] == 132000
+         assert isinstance(result["view_count"], int)
+ 
+     def test_view_count_as_string_converted(self, monkeypatch):
+-        _mock_vision('{"posted_date": null, "caption": "Test", "view_count": "45300"}', monkeypatch)
++        _mock_vision(
++            '{"posted_date": null, "caption": "Test", "view_count": "45300"}',
++            monkeypatch,
++        )
+         result = extract_from_screenshot(_fake_png())
+         assert result["view_count"] == 45300
+ 
+     def test_view_count_float_converted_to_int(self, monkeypatch):
+-        _mock_vision('{"posted_date": null, "caption": "Test", "view_count": 1200.0}', monkeypatch)
++        _mock_vision(
++            '{"posted_date": null, "caption": "Test", "view_count": 1200.0}',
++            monkeypatch,
++        )
+         result = extract_from_screenshot(_fake_png())
+         assert result["view_count"] == 1200
+         assert isinstance(result["view_count"], int)
+ 
+     def test_single_quoted_json_parsed(self, monkeypatch):
+-        _mock_vision("{'posted_date': '2024-06-01', 'caption': 'Hello', 'view_count': 999}", monkeypatch)
++        _mock_vision(
++            "{'posted_date': '2024-06-01', 'caption': 'Hello', 'view_count': 999}",
++            monkeypatch,
++        )
+         result = extract_from_screenshot(_fake_png())
+         assert result["view_count"] == 999
+ 
+     def test_json_inside_markdown_code_block(self, monkeypatch):
+-        _mock_vision('```json\n{"posted_date": null, "caption": "Hi", "view_count": 50}\n```', monkeypatch)
++        _mock_vision(
++            '```json\n{"posted_date": null, "caption": "Hi", "view_count": 50}\n```',
++            monkeypatch,
++        )
+         result = extract_from_screenshot(_fake_png())
+         assert result["view_count"] == 50
+ 
+     def test_trailing_comma_handled(self, monkeypatch):
+-        _mock_vision('{"posted_date": null, "caption": "Test", "view_count": 100,}', monkeypatch)
++        _mock_vision(
++            '{"posted_date": null, "caption": "Test", "view_count": 100,}', monkeypatch
++        )
+         result = extract_from_screenshot(_fake_png())
+         assert result["view_count"] == 100
+ 
+     def test_grid_prompt_used_for_instagram_grid(self, monkeypatch):
+-        _mock_vision('{"posted_date": null, "caption": "No caption", "view_count": 132000}', monkeypatch)
++        _mock_vision(
++            '{"posted_date": null, "caption": "No caption", "view_count": 132000}',
++            monkeypatch,
++        )
+         result = extract_from_screenshot(_fake_png(), prompt=GRID_PROMPT)
+         assert result["view_count"] == 132000
+ 
+     def test_hashtags_removed_from_caption(self, monkeypatch):
+-        _mock_vision('{"posted_date": null, "caption": "Great #viral #fyp", "view_count": 100}', monkeypatch)
++        _mock_vision(
++            '{"posted_date": null, "caption": "Great #viral #fyp", "view_count": 100}',
++            monkeypatch,
++        )
+         result = extract_from_screenshot(_fake_png())
+         assert result["caption"] == "Great"
+         assert "#" not in result["caption"]
+ 
+     def test_large_million_view_count(self, monkeypatch):
+-        _mock_vision('{"posted_date": null, "caption": "Viral", "view_count": 3400000}', monkeypatch)
++        _mock_vision(
++            '{"posted_date": null, "caption": "Viral", "view_count": 3400000}',
++            monkeypatch,
++        )
+         result = extract_from_screenshot(_fake_png())
+         assert result["view_count"] == 3_400_000
+ 
+     def test_date_relative_string_kept_as_is(self, monkeypatch):
+-        _mock_vision('{"posted_date": "3 days ago", "caption": "Test", "view_count": 100}', monkeypatch)
++        _mock_vision(
++            '{"posted_date": "3 days ago", "caption": "Test", "view_count": 100}',
++            monkeypatch,
++        )
+         result = extract_from_screenshot(_fake_png())
+         assert result["posted_date"] == "3 days ago"
+ 
+@@ -340,7 +401,8 @@ class TestPositiveVisionExtract:
+ # 7. LARK READER — get_new_rows filtering
+ # ══════════════════════════════════════════════════════════════
+ 
+-def _make_record(record_id, url, has_date=False, has_views=False):
++
++def _make_record(record_id, url, has_date=False, has_views=False, pic="TAN JING YI"):
+     fields = {}
+     if url:
+         fields["Link"] = {"link": url, "text": url}
+@@ -348,6 +410,8 @@ def _make_record(record_id, url, has_date=False, has_views=False):
+         fields["Date"] = 1710460800000
+     if has_views:
+         fields["Reach"] = 50000
++    if pic is not None:
++        fields["PIC"] = [{"en_name": pic}]
+     rec = MagicMock()
+     rec.record_id = record_id
+     rec.fields = fields
+@@ -365,19 +429,32 @@ def _mock_records(records, monkeypatch):
+ class TestPositiveGetNewRows:
+ 
+     def test_new_youtube_row_returned(self, monkeypatch):
+-        _mock_records([_make_record("rec1", "https://youtube.com/watch?v=abc")], monkeypatch)
++        _mock_records(
++            [_make_record("rec1", "https://youtube.com/watch?v=abc")], monkeypatch
++        )
+         rows = lark_reader.get_new_rows()
+         assert len(rows) == 1
+         assert rows[0] == ("rec1", "https://youtube.com/watch?v=abc")
+ 
+     def test_new_instagram_row_returned(self, monkeypatch):
+-        _mock_records([_make_record("rec1", "https://instagram.com/reel/abc/")], monkeypatch)
++        _mock_records(
++            [_make_record("rec1", "https://instagram.com/reel/abc/")], monkeypatch
++        )
+         rows = lark_reader.get_new_rows()
+         assert len(rows) == 1
+ 
+     def test_already_processed_row_skipped(self, monkeypatch):
+-        _mock_records([_make_record("rec1", "https://youtube.com/watch?v=abc",
+-                                   has_date=True, has_views=True)], monkeypatch)
++        _mock_records(
++            [
++                _make_record(
++                    "rec1",
++                    "https://youtube.com/watch?v=abc",
++                    has_date=True,
++                    has_views=True,
++                )
++            ],
++            monkeypatch,
++        )
+         rows = lark_reader.get_new_rows()
+         assert rows == []
+ 
+@@ -392,14 +469,32 @@ class TestPositiveGetNewRows:
+         assert len(rows) == 3
+ 
+     def test_partial_fill_date_only_reprocessed(self, monkeypatch):
+-        _mock_records([_make_record("rec1", "https://youtube.com/watch?v=abc",
+-                                   has_date=True, has_views=False)], monkeypatch)
++        _mock_records(
++            [
++                _make_record(
++                    "rec1",
++                    "https://youtube.com/watch?v=abc",
++                    has_date=True,
++                    has_views=False,
++                )
++            ],
++            monkeypatch,
++        )
+         rows = lark_reader.get_new_rows()
+         assert len(rows) == 1
+ 
+     def test_partial_fill_views_only_reprocessed(self, monkeypatch):
+-        _mock_records([_make_record("rec1", "https://youtube.com/watch?v=abc",
+-                                   has_date=False, has_views=True)], monkeypatch)
++        _mock_records(
++            [
++                _make_record(
++                    "rec1",
++                    "https://youtube.com/watch?v=abc",
++                    has_date=False,
++                    has_views=True,
++                )
++            ],
++            monkeypatch,
++        )
+         rows = lark_reader.get_new_rows()
+         assert len(rows) == 1
+ 
+@@ -413,15 +508,26 @@ class TestPositiveGetNewRows:
+ # 8. PROCESSOR — end-to-end flow (mocked)
+ # ══════════════════════════════════════════════════════════════
+ 
++
+ class TestPositiveProcessAll:
+ 
+     def test_youtube_full_flow(self, monkeypatch):
+-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
+-            ("rec1", "https://www.youtube.com/watch?v=test")
+-        ])
+-        monkeypatch.setattr(processor, "get_metadata", MagicMock(return_value={
+-            "posted_date": "2024-03-15", "caption": "My video", "view_count": 1000
+-        }))
++        monkeypatch.setattr(
++            processor,
++            "get_new_rows",
++            lambda: [("rec1", "https://www.youtube.com/watch?v=test")],
++        )
++        monkeypatch.setattr(
++            processor,
++            "get_metadata",
++            MagicMock(
++                return_value={
++                    "posted_date": "2024-03-15",
++                    "caption": "My video",
++                    "view_count": 1000,
++                }
++            ),
++        )
+         mock_write = MagicMock()
+         monkeypatch.setattr(processor, "write_row", mock_write)
+         monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+@@ -433,16 +539,32 @@ class TestPositiveProcessAll:
+         mock_write.assert_called_once()
+ 
+     def test_instagram_merges_reel_and_grid_data(self, monkeypatch):
+-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
+-            ("rec1", "https://www.instagram.com/reel/abc/")
+-        ])
+-        monkeypatch.setattr(processor, "get_screenshot",
+-                            MagicMock(return_value=(b"reel", b"grid")))
++        monkeypatch.setattr(
++            processor,
++            "get_new_rows",
++            lambda: [("rec1", "https://www.instagram.com/reel/abc/")],
++        )
 +        fake_split_ss = b"split_view"
 +        fake_reel_page_ss = b"reel_page"
-         monkeypatch.setattr(processor, "get_screenshot",
--                            MagicMock(return_value=(b"reel", b"grid")))
-+                            MagicMock(return_value=(fake_split_ss, fake_reel_page_ss, None, None)))
++        monkeypatch.setattr(
++            processor,
++            "get_screenshot",
++            MagicMock(return_value=(fake_split_ss, fake_reel_page_ss, None, None)),
++        )
  
          def mock_extract(ss, prompt=None):
 -            if prompt == GRID_PROMPT:
 -                return {"posted_date": None, "caption": "No caption", "view_count": 132000}
+-            return {"posted_date": "2024-03-15", "caption": "My reel caption", "view_count": None}
 +            # thumb_ss (reel page screenshot) → view count; main_ss → caption/date
 +            if ss == fake_reel_page_ss:
-+                return {"posted_date": None, "caption": "No caption", "view_count": 21600}
-             return {"posted_date": "2024-03-15", "caption": "My reel caption", "view_count": None}
++                return {
++                    "posted_date": None,
++                    "caption": "No caption",
++                    "view_count": 21600,
++                }
++            return {
++                "posted_date": "2024-03-15",
++                "caption": "My reel caption",
++                "view_count": None,
++            }
  
          monkeypatch.setattr(processor, "extract_from_screenshot", mock_extract)
-@@ -450,8 +453,8 @@ class TestPositiveProcessAll:
+         mock_write = MagicMock()
+@@ -450,8 +572,8 @@ class TestPositiveProcessAll:
          monkeypatch.setattr(processor, "get_metadata", MagicMock())
  
          results = processor.process_all()
 -        assert results[0]["data"]["caption"] == "My reel caption"   # from reel page
 -        assert results[0]["data"]["view_count"] == 132000            # from grid
-+        assert results[0]["data"]["caption"] == "My reel caption"   # from split view
-+        assert results[0]["data"]["view_count"] == 21600             # from reel page
++        assert results[0]["data"]["caption"] == "My reel caption"  # from split view
++        assert results[0]["data"]["view_count"] == 21600  # from reel page
  
      def test_no_rows_returns_empty_list(self, monkeypatch):
          monkeypatch.setattr(processor, "get_new_rows", lambda: [])
+@@ -459,14 +581,26 @@ class TestPositiveProcessAll:
+         assert results == []
+ 
+     def test_multiple_urls_all_processed(self, monkeypatch):
+-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
+-            ("rec1", "https://www.youtube.com/watch?v=aaa"),
+-            ("rec2", "https://www.youtube.com/watch?v=bbb"),
+-            ("rec3", "https://www.youtube.com/watch?v=ccc"),
+-        ])
+-        monkeypatch.setattr(processor, "get_metadata", MagicMock(return_value={
+-            "posted_date": "2024-01-01", "caption": "Video", "view_count": 500
+-        }))
++        monkeypatch.setattr(
++            processor,
++            "get_new_rows",
++            lambda: [
++                ("rec1", "https://www.youtube.com/watch?v=aaa"),
++                ("rec2", "https://www.youtube.com/watch?v=bbb"),
++                ("rec3", "https://www.youtube.com/watch?v=ccc"),
++            ],
++        )
++        monkeypatch.setattr(
++            processor,
++            "get_metadata",
++            MagicMock(
++                return_value={
++                    "posted_date": "2024-01-01",
++                    "caption": "Video",
++                    "view_count": 500,
++                }
++            ),
++        )
+         monkeypatch.setattr(processor, "write_row", MagicMock())
+         monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+ 
 diff --git a/tests/test_processor.py b/tests/test_processor.py
 index 429d1be..856649d 100644
 --- a/tests/test_processor.py
