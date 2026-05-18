@@ -257,11 +257,8 @@ add_body(doc, (
 ), italic=True, color=GREY)
 
 add_body(doc, (
-    'Note on baseline measurement: An earlier estimate cited "10 minutes per day" of data collection work. '
-    'That figure included time spent switching between apps, re-checking previous entries, and '
-    'searching for older posts — overhead that is hard to time precisely. '
-    'The 40 minutes/week figure above is based on timed measurement of individual tasks per video '
-    '(4 minutes × 10 videos), which is the repeatable, verifiable baseline used for all calculations in this document.'
+    'Baseline: 4 minutes per video × 10 videos = 40 minutes per week. '
+    'Each task above was timed individually — this is the repeatable, verifiable figure used for all calculations in this document.'
 ), italic=True, color=GREY)
 
 add_heading(doc, '3.2 Why This Cannot Be Solved by Simple Automation', 2)
