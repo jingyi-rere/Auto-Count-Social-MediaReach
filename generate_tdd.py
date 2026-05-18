@@ -202,7 +202,9 @@ add_heading(doc, '1. System Overview', 1)
 add_body(doc, (
     'The Auto Count Social Media Reach system is a Python-based automation tool. '
     'The user pastes video URLs into Column F of their Lark Bitable, then runs python watcher.py once. '
-    'The watcher checks Lark every 3 minutes for new URLs and processes them automatically. '
+    'The watcher checks Lark every 3 minutes for new URLs and processes them automatically '
+    '(reduced from 5 minutes after observing that Instagram+Vision processing takes 2-4 minutes per URL — '
+    'a 5-minute interval meant the next check fired before the current batch finished logging). '
     'Each URL is routed to the best extraction method: '
     'yt-dlp (fast, exact numbers, no browser) for YouTube and TikTok; '
     'Firefox + Claude Haiku Vision (claude-haiku-4-5) for Instagram and RedNote. '
