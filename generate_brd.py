@@ -457,28 +457,40 @@ make_table(doc,
 )
 
 # ── 8. SUPPORTED PLATFORMS ────────────────────────────────────────────────────
-add_heading(doc, '10. Supported Platforms', 1)
+add_heading(doc, '10. Supported Platforms (Current Scope)', 1)
 add_body(doc, (
-    'Phase 1 (active, fully built and tested): 4 platforms. '
-    'Phase 2 (future, planned but not yet built): 3 additional platforms. '
-    'This is an intentional phased approach — not scope creep. '
-    'The 4 Phase 1 platforms cover 100% of current posting activity. '
-    'Phase 2 platforms will be added only if the user expands to those platforms.'
+    'The following 4 platforms are fully built, tested, and active. '
+    'They cover 100% of current posting activity.'
 ), italic=True, color=GREY)
 doc.add_paragraph()
 
 make_table(doc,
-    ['Phase', 'Platform', 'Video Format', 'Column G (Views)', 'Column D (Caption)', 'Data Source'],
+    ['Platform', 'Video Format', 'Column G (Views)', 'Column D (Caption)', 'Data Source'],
     [
-        (('Phase 1', True, GREEN), 'YouTube', 'Video / Shorts', 'Total video views', 'Video title', 'yt-dlp (no browser needed — fast & exact)'),
-        (('Phase 1', True, GREEN), 'TikTok', 'Video', 'Total video views', 'Video description — hashtags removed', 'yt-dlp (no browser needed — fast & exact)'),
-        (('Phase 1', True, GREEN), 'Instagram', 'Reels', 'Reels view count', 'Post caption — hashtags removed', 'Firefox + Claude Vision (2-screenshot approach)'),
-        (('Phase 1', True, GREEN), 'RedNote (小红书)', 'Video', 'Video views', 'Post caption — hashtags removed', 'Firefox + Claude Vision'),
-        (('Phase 2', True, ORANGE), 'Facebook', 'Video / Reels', 'Video views', 'Post caption — hashtags removed', 'Firefox + Claude Vision (planned)'),
-        (('Phase 2', True, ORANGE), 'X (Twitter)', 'Video post', 'Video views', 'Tweet text — hashtags removed', 'Firefox + Claude Vision (planned)'),
-        (('Phase 2', True, ORANGE), 'Threads', 'Video post', 'Video views', 'Post caption — hashtags removed', 'Firefox + Claude Vision (planned)'),
+        ('YouTube', 'Video / Shorts', 'Total video views', 'Video title', 'yt-dlp (no browser needed — fast & exact)'),
+        ('TikTok', 'Video', 'Total video views', 'Video description — hashtags removed', 'yt-dlp (no browser needed — fast & exact)'),
+        ('Instagram', 'Reels', 'Reels view count', 'Post caption — hashtags removed', 'Firefox + Claude Vision (2-screenshot approach)'),
+        ('RedNote (小红书)', 'Video', 'Video views', 'Post caption — hashtags removed', 'Firefox + Claude Vision'),
     ],
-    [0.8, 1.2, 1.0, 1.2, 1.8, 1.5]
+    [1.2, 1.0, 1.2, 1.8, 1.5]
+)
+doc.add_paragraph()
+
+add_heading(doc, 'Appendix A: Future Scope (Not Built)', 1)
+add_body(doc, (
+    'The following platforms are out of scope for the current build. '
+    'They will only be considered if the user expands posting activity to these platforms.'
+), italic=True, color=GREY)
+doc.add_paragraph()
+
+make_table(doc,
+    ['Platform', 'Video Format', 'Planned Data Source', 'Blocker'],
+    [
+        ('Facebook', 'Video / Reels', 'Firefox + Claude Vision', 'Requires Facebook Business account for API; UI scraping feasible but untested'),
+        ('X (Twitter)', 'Video post', 'Firefox + Claude Vision', 'X aggressively blocks automation; login required for all content'),
+        ('Threads', 'Video post', 'Firefox + Claude Vision', 'No API; UI scraping feasible but not yet implemented'),
+    ],
+    [1.2, 1.0, 1.8, 2.5]
 )
 
 # ── 9. FUNCTIONAL REQUIREMENTS ────────────────────────────────────────────────
