@@ -58,7 +58,8 @@
       "Skill(update-config)",
       "Skill(update-config:*)",
       "Bash(mkdir -p ~/.claude/skills/live-test)",
-      "Bash(xargs kill)"
+      "Bash(xargs kill)",
+      "Bash(grep -v \"\\\\.docx$\")"
     ],
     "deny": [
       "Bash(rm -rf *)",
