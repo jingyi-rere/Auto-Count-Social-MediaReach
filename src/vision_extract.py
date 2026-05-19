@@ -33,7 +33,7 @@ Extract exactly these 3 pieces of information:
    - Strip whitespace. If nothing remains, return "No caption".
 
 3. view_count — Total number of views/plays as a plain integer.
-   - Look for: a number near a play button ▶, eye icon 👁, or the word "views", "plays", "次播放", "plays".
+   - Look for: a number near a play button ▶, eye icon 👁, or the word "views", "plays", "次播放".
    - On Instagram reel page: look for text like "X plays" or "X views" shown below or beside the video. Also check any number overlaid on the video player in the bottom-left corner.
    - On TikTok: look for a number at the top left of the video or below.
    - On RedNote (小红书): look for a number near 👁 eye icon, or near "播放" (plays), or "观看" (views). The count is often shown in the bottom-left or bottom-right of the video thumbnail as a white number (e.g. "1.2万" = 12000, "3.4万" = 34000, "1.2K" = 1200). Convert 万: 1万=10000, 1.2万=12000, 3.4万=34000.
@@ -77,12 +77,10 @@ def _compress_image(screenshot_bytes: bytes, max_bytes: int = 4_500_000) -> tupl
         return screenshot_bytes, "image/png"
 
     img = Image.open(io.BytesIO(screenshot_bytes))
-    # Scale down if very large
     w, h = img.size
     if w > 1280 or h > 900:
         img.thumbnail((1280, 900), Image.LANCZOS)
 
-    # Convert to JPEG
     buf = io.BytesIO()
     img = img.convert("RGB")
     quality = 85
@@ -95,6 +93,65 @@ def _compress_image(screenshot_bytes: bytes, max_bytes: int = 4_500_000) -> tupl
         quality -= 15
 
     return buf.getvalue(), "image/jpeg"
+
+
+def _parse_view_count(text: str):
+    """Parse view count strings including K/M shorthand and Chinese 万."""
+    text = text.strip().replace(",", "")
+    # Chinese 万 (10,000) — e.g. "1.2万" → 12000
+    m = re.match(r"^([\d.]+)\s*万$", text)
+    if m:
+        return int(float(m.group(1)) * 10_000)
+    # K / M shorthand
+    m = re.match(r"^([\d.]+)\s*([KkMm])$", text)
+    if m:
+        num = float(m.group(1))
+        mult = {"k": 1_000, "m": 1_000_000}[m.group(2).lower()]
+        return int(num * mult)
+    try:
+        return int(float(text))
+    except ValueError:
+        return None
+
+
+def _resolve_relative_date(text) -> str | None:
+    """
+    Convert relative date text returned by Vision to YYYY-MM-DD.
+    Handles: "3 days ago", "1 week ago", "15w", "2d", "5h", "1 month ago".
+    Returns the original string unchanged if it already looks like a real date.
+    Returns None if input is None/null/empty.
+    """
+    if not text or str(text).strip().lower() in ("null", "none", ""):
+        return None
+    t = str(text).strip().lower()
+    today = date.today()
+
+    # Already a real date (YYYY-MM-DD or similar) — leave as-is
+    if re.match(r"\d{4}-\d{2}-\d{2}", t):
+        return str(text).strip()[:10]
+
+    # "X days ago" or "Xd"
+    m = re.search(r"(\d+)\s*d(?:ays?\s+ago)?", t)
+    if m:
+        return (today - timedelta(days=int(m.group(1)))).isoformat()
+
+    # "X weeks ago" or "Xw"
+    m = re.search(r"(\d+)\s*w(?:eeks?\s+ago)?", t)
+    if m:
+        return (today - timedelta(weeks=int(m.group(1)))).isoformat()
+
+    # "X months ago"
+    m = re.search(r"(\d+)\s*months?\s+ago", t)
+    if m:
+        return (today - timedelta(days=int(m.group(1)) * 30)).isoformat()
+
+    # "X hours ago" or "Xh" → same day
+    m = re.search(r"(\d+)\s*h(?:ours?\s+ago)?", t)
+    if m:
+        return today.isoformat()
+
+    # Can't resolve — return as-is so lark_writer tries dateutil on it
+    return str(text).strip()
 
 
 def extract_from_screenshot(screenshot_bytes: bytes, prompt: str = None) -> dict:
@@ -165,67 +222,8 @@ def extract_from_screenshot(screenshot_bytes: bytes, prompt: str = None) -> dict
         else:
             vc = _parse_view_count(vc)
 
-
-def _parse_view_count(text: str):
-    """Parse view count strings including K/M shorthand and Chinese 万."""
-    text = text.strip().replace(",", "")
-    # Chinese 万 (10,000) — e.g. "1.2万" → 12000
-    m = re.match(r"^([\d.]+)\s*万$", text)
-    if m:
-        return int(float(m.group(1)) * 10_000)
-    # K / M shorthand
-    m = re.match(r"^([\d.]+)\s*([KkMm])$", text)
-    if m:
-        num = float(m.group(1))
-        mult = {"k": 1_000, "m": 1_000_000}[m.group(2).lower()]
-        return int(num * mult)
-    try:
-        return int(float(text))
-    except ValueError:
-        return None
-
     return {
         "posted_date": _resolve_relative_date(data.get("posted_date")),
         "caption": _clean_caption(str(data.get("caption") or "")),
         "view_count": vc,
     }
-
-
-def _resolve_relative_date(text) -> str | None:
-    """
-    Convert relative date text returned by Vision to YYYY-MM-DD.
-    Handles: "3 days ago", "1 week ago", "15w", "2d", "5h", "1 month ago".
-    Returns the original string unchanged if it already looks like a real date.
-    Returns None if input is None/null/empty.
-    """
-    if not text or str(text).strip().lower() in ("null", "none", ""):
-        return None
-    t = str(text).strip().lower()
-    today = date.today()
-
-    # Already a real date (YYYY-MM-DD or similar) — leave as-is
-    if re.match(r"\d{4}-\d{2}-\d{2}", t):
-        return str(text).strip()[:10]
-
-    # "X days ago" or "Xd"
-    m = re.search(r"(\d+)\s*d(?:ays?\s+ago)?", t)
-    if m:
-        return (today - timedelta(days=int(m.group(1)))).isoformat()
-
-    # "X weeks ago" or "Xw"
-    m = re.search(r"(\d+)\s*w(?:eeks?\s+ago)?", t)
-    if m:
-        return (today - timedelta(weeks=int(m.group(1)))).isoformat()
-
-    # "X months ago"
-    m = re.search(r"(\d+)\s*months?\s+ago", t)
-    if m:
-        return (today - timedelta(days=int(m.group(1)) * 30)).isoformat()
-
-    # "X hours ago" or "Xh" → same day
-    m = re.search(r"(\d+)\s*h(?:ours?\s+ago)?", t)
-    if m:
-        return today.isoformat()
-
-    # Can't resolve — return as-is so lark_writer tries dateutil on it
-    return str(text).strip()
