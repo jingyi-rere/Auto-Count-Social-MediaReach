@@ -89,11 +89,17 @@ def _js_find_thumbnail(shortcode: str) -> str:
             ];
             for (const pat of patterns) {{
                 const links = Array.from(document.querySelectorAll(pat));
-                // Grid thumbnails always wrap an <img>; navigation links do not
+                // Prefer grid thumbnails with an <img> child, but also accept
+                // thumbnails that use CSS background-image (no <img>) — Instagram
+                // has started using background-image on grid thumbnails.
                 const withImg = links.find(a => a.querySelector('img'));
                 if (withImg) return withImg;
+                // Accept any link that is not just a nav bar link (nav links have
+                // no numeric text; grid thumbnails show the view count as innerText)
+                const gridLink = links.find(a => /^[\\d,.KkMm]+$/.test(a.innerText.trim()));
+                if (gridLink) return gridLink;
             }}
-            // Fallback: any matching link (better than nothing)
+            // Last fallback: any matching link
             for (const pat of patterns) {{
                 const el = document.querySelector(pat);
                 if (el) return el;
