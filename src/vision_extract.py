@@ -117,41 +117,62 @@ def _parse_view_count(text: str):
 def _resolve_relative_date(text):
     """
     Convert relative date text returned by Vision to YYYY-MM-DD.
-    Handles: "3 days ago", "1 week ago", "15w", "2d", "5h", "1 month ago".
-    Returns the original string unchanged if it already looks like a real date.
+    Handles English: "3 days ago", "1 week ago", "15w", "2d", "5h", "1 month ago".
+    Handles Chinese: "3天前", "1周前", "2个月前", "5小时前".
     Returns None if input is None/null/empty.
     """
     if not text or str(text).strip().lower() in ("null", "none", ""):
         return None
-    t = str(text).strip().lower()
+    raw = str(text).strip()
+    t = raw.lower()
     today = date.today()
 
     # Already a real date (YYYY-MM-DD or similar) — leave as-is
     if re.match(r"\d{4}-\d{2}-\d{2}", t):
-        return str(text).strip()[:10]
+        return raw[:10]
 
-    # "X days ago" or "Xd"
+    # Chinese: X天前 (X days ago)
+    m = re.search(r"(\d+)\s*天前", raw)
+    if m:
+        return (today - timedelta(days=int(m.group(1)))).isoformat()
+
+    # Chinese: X周前 (X weeks ago)
+    m = re.search(r"(\d+)\s*周前", raw)
+    if m:
+        return (today - timedelta(weeks=int(m.group(1)))).isoformat()
+
+    # Chinese: X个月前 (X months ago)
+    m = re.search(r"(\d+)\s*个月前", raw)
+    if m:
+        return (today - timedelta(days=int(m.group(1)) * 30)).isoformat()
+
+    # Chinese: X小时前 (X hours ago) → same day
+    m = re.search(r"(\d+)\s*小时前", raw)
+    if m:
+        return today.isoformat()
+
+    # English: "X days ago" or "Xd"
     m = re.search(r"(\d+)\s*d(?:ays?\s+ago)?", t)
     if m:
         return (today - timedelta(days=int(m.group(1)))).isoformat()
 
-    # "X weeks ago" or "Xw"
+    # English: "X weeks ago" or "Xw"
     m = re.search(r"(\d+)\s*w(?:eeks?\s+ago)?", t)
     if m:
         return (today - timedelta(weeks=int(m.group(1)))).isoformat()
 
-    # "X months ago"
+    # English: "X months ago"
     m = re.search(r"(\d+)\s*months?\s+ago", t)
     if m:
         return (today - timedelta(days=int(m.group(1)) * 30)).isoformat()
 
-    # "X hours ago" or "Xh" → same day
+    # English: "X hours ago" or "Xh" → same day
     m = re.search(r"(\d+)\s*h(?:ours?\s+ago)?", t)
     if m:
         return today.isoformat()
 
     # Can't resolve — return as-is so lark_writer tries dateutil on it
-    return str(text).strip()
+    return raw
 
 
 def extract_from_screenshot(screenshot_bytes: bytes, prompt: str = None) -> dict:
