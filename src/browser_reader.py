@@ -279,13 +279,34 @@ async def _get_instagram_data(page, reel_url: str):
         if found_reel:
             log.info("Instagram: found grid thumbnail for %s", shortcode)
 
+            # Read view count directly from thumbnail innerText — Instagram now
+            # renders the play count as visible text inside the thumbnail <a>,
+            # even when it uses CSS background-image instead of <img>.
+            if dom_view_count is None:
+                try:
+                    raw_thumb_vc = await page.evaluate(
+                        f"(() => {{ const el = {find_js}; return el ? el.innerText.trim() : null; }})()"
+                    )
+                    thumb_vc = _parse_count_text(raw_thumb_vc)
+                    if thumb_vc is not None:
+                        dom_view_count = thumb_vc
+                        log.info(
+                            "Instagram: grid thumbnail view count = %d (raw: %s)",
+                            dom_view_count,
+                            raw_thumb_vc,
+                        )
+                except Exception as exc:
+                    log.debug(
+                        "Instagram: grid thumbnail view count read failed: %s", exc
+                    )
+
             # ── Step 3: click thumbnail → split view (full caption on right) ──
             log.info("Instagram: clicking thumbnail to open split post view")
             clicked = await page.evaluate(
                 f"""
                 () => {{
                     const el = {find_js};
-                    if (el) {{ (el.querySelector('img') || el).click(); return true; }}
+                    if (el) {{ el.click(); return true; }}
                     return false;
                 }}
             """
