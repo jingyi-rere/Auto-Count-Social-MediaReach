@@ -9,6 +9,7 @@ For RedNote & others: screenshots the individual page directly.
 Firefox is completely separate from Chrome — Chrome never needs to close.
 Login sessions stored in ~/.cache/auto-count/firefox-profile (login_once.py).
 """
+
 import asyncio
 import re as _re
 from datetime import date, timedelta
@@ -25,6 +26,7 @@ FIREFOX_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Date helpers ───────────────────────────────────────────────────────────────
 
+
 def _parse_ig_date(datetime_str: Optional[str]) -> Optional[str]:
     """Extract YYYY-MM-DD from an ISO 8601 datetime string."""
     if not datetime_str:
@@ -39,13 +41,13 @@ def _parse_ig_relative_date(text: Optional[str]) -> Optional[str]:
         return None
     today = date.today()
     t = text.strip().lower()
-    m = _re.search(r'(\d+)\s*w', t)
+    m = _re.search(r"(\d+)\s*w", t)
     if m:
         return (today - timedelta(weeks=int(m.group(1)))).isoformat()
-    m = _re.search(r'(\d+)\s*d', t)
+    m = _re.search(r"(\d+)\s*d", t)
     if m:
         return (today - timedelta(days=int(m.group(1)))).isoformat()
-    m = _re.search(r'(\d+)\s*h', t)
+    m = _re.search(r"(\d+)\s*h", t)
     if m:
         return today.isoformat()
     return None
@@ -53,17 +55,18 @@ def _parse_ig_relative_date(text: Optional[str]) -> Optional[str]:
 
 # ── View-count helpers ─────────────────────────────────────────────────────────
 
+
 def _parse_count_text(text: Optional[str]) -> Optional[int]:
     """Convert '21.6K', '1.2M', '21,600', '21600' → integer."""
     if not text:
         return None
-    text = text.strip().replace(',', '')
-    m = _re.match(r'^([\d.]+)([KkMm]?)$', text)
+    text = text.strip().replace(",", "")
+    m = _re.match(r"^([\d.]+)([KkMm]?)$", text)
     if not m:
         return None
     num = float(m.group(1))
     suffix = m.group(2).upper()
-    multiplier = {'K': 1_000, 'M': 1_000_000}.get(suffix, 1)
+    multiplier = {"K": 1_000, "M": 1_000_000}.get(suffix, 1)
     return int(num * multiplier)
 
 
@@ -72,6 +75,7 @@ def _parse_count_text(text: Optional[str]) -> Optional[int]:
 # do not. Using the img-filter prevents querySelector from returning the wrong
 # element (a nav link with the same shortcode in its href) — which was the root
 # cause of wrong view counts, wrong bboxes, and the split-view never opening.
+
 
 def _js_find_thumbnail(shortcode: str) -> str:
     """Return a JS expression that evaluates to the grid thumbnail <a> element or null."""
@@ -101,15 +105,17 @@ def _js_find_thumbnail(shortcode: str) -> str:
 
 # ── Non-Instagram helper ───────────────────────────────────────────────────────
 
+
 async def _screenshot_url(page, url: str) -> bytes:
     await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-    await page.wait_for_timeout(4_000)
-    await page.keyboard.press("Escape")
-    await page.wait_for_timeout(500)
+    # Wait longer for RedNote — dynamic content (view count, caption) takes time to render.
+    # Do NOT press Escape: on RedNote it can close the video player and hide view count.
+    await page.wait_for_timeout(6_000)
     return await page.screenshot(full_page=False)
 
 
 # ── Instagram extractor ────────────────────────────────────────────────────────
+
 
 async def _get_instagram_data(page, reel_url: str):
     """
@@ -132,8 +138,9 @@ async def _get_instagram_data(page, reel_url: str):
     # Escape. Escape can dismiss the reel viewer and navigate back to the profile
     # grid, making page.url and any later screenshot refer to the wrong content.
     actual_url = page.url
-    sc_match = (_re.search(r"/reel(?:s)?/([^/?#]+)", actual_url) or
-                _re.search(r"/reel(?:s)?/([^/?#]+)", reel_url))
+    sc_match = _re.search(r"/reel(?:s)?/([^/?#]+)", actual_url) or _re.search(
+        r"/reel(?:s)?/([^/?#]+)", reel_url
+    )
     shortcode = sc_match.group(1) if sc_match else reel_url.rstrip("/").split("/")[-1]
     log.info("Instagram: shortcode = %s  (from %s)", shortcode, actual_url[:60])
 
@@ -142,8 +149,10 @@ async def _get_instagram_data(page, reel_url: str):
         return await page.screenshot(full_page=False), None, shortcode, None, None
 
     reel_page_screenshot = await page.screenshot(full_page=False)
-    log.info("Instagram: reel page screenshot captured (%d bytes, before Escape)",
-             len(reel_page_screenshot))
+    log.info(
+        "Instagram: reel page screenshot captured (%d bytes, before Escape)",
+        len(reel_page_screenshot),
+    )
 
     # Wait for dynamic content to load, then dismiss any popup.
     await page.wait_for_timeout(4_000)
@@ -152,7 +161,8 @@ async def _get_instagram_data(page, reel_url: str):
 
     dom_view_count = None
     try:
-        raw_vc = await page.evaluate("""
+        raw_vc = await page.evaluate(
+            """
             () => {
                 // 1. Embedded script data — Instagram buries play_count / video_view_count
                 //    in plain <script> tags as raw JSON fragments.
@@ -182,19 +192,33 @@ async def _get_instagram_data(page, reel_url: str):
                 if (meta) return meta.getAttribute('content');
                 return null;
             }
-        """)
+        """
+        )
         dom_view_count = _parse_count_text(raw_vc)
         if dom_view_count is not None:
-            log.info("Instagram: reel-page view count = %d (raw: %s)", dom_view_count, raw_vc)
+            log.info(
+                "Instagram: reel-page view count = %d (raw: %s)", dom_view_count, raw_vc
+            )
         else:
             log.debug("Instagram: no view count found in reel page data")
     except Exception as exc:
         log.debug("Instagram: reel-page view count failed: %s", exc)
 
     # Find author profile reels URL
-    BLOCKED = {"reel", "reels", "explore", "accounts", "direct", "stories",
-               "audio", "p", "tv", ""}
-    profile_reels_url = await page.evaluate("""
+    BLOCKED = {
+        "reel",
+        "reels",
+        "explore",
+        "accounts",
+        "direct",
+        "stories",
+        "audio",
+        "p",
+        "tv",
+        "",
+    }
+    profile_reels_url = await page.evaluate(
+        """
         (blocked) => {
             for (const a of document.querySelectorAll('a[href]')) {
                 const m = a.href.match(/instagram\\.com\\/([a-zA-Z0-9._]+)\\/reels\\//);
@@ -202,7 +226,9 @@ async def _get_instagram_data(page, reel_url: str):
             }
             return null;
         }
-    """, list(BLOCKED))
+    """,
+        list(BLOCKED),
+    )
 
     # The reel page screenshot is always used for view count OCR — it is
     # guaranteed to correspond to the URL the user pasted, so it can never
@@ -216,7 +242,9 @@ async def _get_instagram_data(page, reel_url: str):
     else:
         # ── Step 2: navigate to profile reels grid ────────────────────────────
         log.info("Instagram: navigating to profile grid %s", profile_reels_url)
-        await page.goto(profile_reels_url, wait_until="domcontentloaded", timeout=45_000)
+        await page.goto(
+            profile_reels_url, wait_until="domcontentloaded", timeout=45_000
+        )
         await page.wait_for_timeout(4_000)
         await page.keyboard.press("Escape")
         await page.wait_for_timeout(500)
@@ -229,12 +257,14 @@ async def _get_instagram_data(page, reel_url: str):
             found = await page.evaluate(f"!!({find_js})")
             if found:
                 found_reel = True
-                await page.evaluate(f"""
+                await page.evaluate(
+                    f"""
                     () => {{
                         const el = {find_js};
                         if (el) el.scrollIntoView({{block: 'center'}});
                     }}
-                """)
+                """
+                )
                 await page.wait_for_timeout(1_000)
                 break
             await page.evaluate("window.scrollBy(0, 700)")
@@ -245,20 +275,23 @@ async def _get_instagram_data(page, reel_url: str):
 
             # ── Step 3: click thumbnail → split view (full caption on right) ──
             log.info("Instagram: clicking thumbnail to open split post view")
-            clicked = await page.evaluate(f"""
+            clicked = await page.evaluate(
+                f"""
                 () => {{
                     const el = {find_js};
                     if (el) {{ (el.querySelector('img') || el).click(); return true; }}
                     return false;
                 }}
-            """)
+            """
+            )
             if clicked:
                 await page.wait_for_timeout(3_000)
 
                 # ── Step 4: extract date + screenshot split view ───────────────
                 try:
-                    await page.wait_for_selector('time', timeout=5_000)
-                    date_info = await page.evaluate("""
+                    await page.wait_for_selector("time", timeout=5_000)
+                    date_info = await page.evaluate(
+                        """
                         () => {
                             const t = document.querySelector('time[datetime]');
                             if (t) return {datetime: t.getAttribute('datetime'),
@@ -267,16 +300,22 @@ async def _get_instagram_data(page, reel_url: str):
                             return t2 ? {datetime: null, text: t2.textContent.trim()}
                                       : null;
                         }
-                    """)
+                    """
+                    )
                     if date_info:
-                        dom_date = (_parse_ig_date(date_info.get('datetime')) or
-                                    _parse_ig_relative_date(date_info.get('text')))
-                        log.info("Instagram: date_info=%s → dom_date=%s", date_info, dom_date)
+                        dom_date = _parse_ig_date(
+                            date_info.get("datetime")
+                        ) or _parse_ig_relative_date(date_info.get("text"))
+                        log.info(
+                            "Instagram: date_info=%s → dom_date=%s", date_info, dom_date
+                        )
                 except Exception as exc:
                     log.debug("Instagram: date extraction failed: %s", exc)
 
                 post_screenshot = await page.screenshot(full_page=False)
-                log.debug("Instagram: split-view screenshot (%d bytes)", len(post_screenshot))
+                log.debug(
+                    "Instagram: split-view screenshot (%d bytes)", len(post_screenshot)
+                )
             else:
                 log.warning("Instagram: could not click thumbnail")
         else:
@@ -297,13 +336,15 @@ async def _get_instagram_data(page, reel_url: str):
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
+
 def _release_firefox_lock():
     lock = FIREFOX_PROFILE_DIR / ".parentlock"
     if lock.exists():
         import subprocess
+
         result = subprocess.run(
             ["pgrep", "-f", f"ms-playwright.*firefox.*{FIREFOX_PROFILE_DIR}"],
-            capture_output=True
+            capture_output=True,
         )
         if result.returncode != 0:
             lock.unlink(missing_ok=True)
@@ -320,7 +361,9 @@ async def _take_screenshot(url: str):
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
         try:
             if "instagram.com" in url:
-                post_ss, thumb_ss, sc, dom_date, dom_vc = await _get_instagram_data(page, url)
+                post_ss, thumb_ss, sc, dom_date, dom_vc = await _get_instagram_data(
+                    page, url
+                )
                 return post_ss, thumb_ss, dom_date, dom_vc
             else:
                 ss = await _screenshot_url(page, url)
