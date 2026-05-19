@@ -169,7 +169,47 @@ def extract_from_screenshot(screenshot_bytes: bytes, prompt: str = None) -> dict
                 vc = None
 
     return {
-        "posted_date": data.get("posted_date"),
+        "posted_date": _resolve_relative_date(data.get("posted_date")),
         "caption": _clean_caption(str(data.get("caption") or "")),
         "view_count": vc,
     }
+
+
+def _resolve_relative_date(text) -> str | None:
+    """
+    Convert relative date text returned by Vision to YYYY-MM-DD.
+    Handles: "3 days ago", "1 week ago", "15w", "2d", "5h", "1 month ago".
+    Returns the original string unchanged if it already looks like a real date.
+    Returns None if input is None/null/empty.
+    """
+    if not text or str(text).strip().lower() in ("null", "none", ""):
+        return None
+    t = str(text).strip().lower()
+    today = date.today()
+
+    # Already a real date (YYYY-MM-DD or similar) — leave as-is
+    if re.match(r"\d{4}-\d{2}-\d{2}", t):
+        return str(text).strip()[:10]
+
+    # "X days ago" or "Xd"
+    m = re.search(r"(\d+)\s*d(?:ays?\s+ago)?", t)
+    if m:
+        return (today - timedelta(days=int(m.group(1)))).isoformat()
+
+    # "X weeks ago" or "Xw"
+    m = re.search(r"(\d+)\s*w(?:eeks?\s+ago)?", t)
+    if m:
+        return (today - timedelta(weeks=int(m.group(1)))).isoformat()
+
+    # "X months ago"
+    m = re.search(r"(\d+)\s*months?\s+ago", t)
+    if m:
+        return (today - timedelta(days=int(m.group(1)) * 30)).isoformat()
+
+    # "X hours ago" or "Xh" → same day
+    m = re.search(r"(\d+)\s*h(?:ours?\s+ago)?", t)
+    if m:
+        return today.isoformat()
+
+    # Can't resolve — return as-is so lark_writer tries dateutil on it
+    return str(text).strip()
