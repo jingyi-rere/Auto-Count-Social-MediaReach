@@ -388,13 +388,16 @@ class TestPositiveVisionExtract:
         result = extract_from_screenshot(_fake_png())
         assert result["view_count"] == 3_400_000
 
-    def test_date_relative_string_kept_as_is(self, monkeypatch):
+    def test_date_relative_string_resolved_to_absolute(self, monkeypatch):
+        from datetime import date, timedelta
+
         _mock_vision(
             '{"posted_date": "3 days ago", "caption": "Test", "view_count": 100}',
             monkeypatch,
         )
         result = extract_from_screenshot(_fake_png())
-        assert result["posted_date"] == "3 days ago"
+        expected = (date.today() - timedelta(days=3)).isoformat()
+        assert result["posted_date"] == expected
 
 
 # ══════════════════════════════════════════════════════════════
