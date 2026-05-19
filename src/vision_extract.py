@@ -114,7 +114,7 @@ def _parse_view_count(text: str):
         return None
 
 
-def _resolve_relative_date(text) -> str | None:
+def _resolve_relative_date(text):
     """
     Convert relative date text returned by Vision to YYYY-MM-DD.
     Handles: "3 days ago", "1 week ago", "15w", "2d", "5h", "1 month ago".
