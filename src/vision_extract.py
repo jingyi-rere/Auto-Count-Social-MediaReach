@@ -9,6 +9,7 @@ import re
 import json
 import base64
 import anthropic
+from datetime import date, timedelta
 from PIL import Image
 from src._env import *  # noqa: loads .env from project root
 from src.utils import clean_caption as _clean_caption  # shared, single source of truth
