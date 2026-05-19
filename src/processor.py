@@ -3,13 +3,14 @@ processor.py — Routes each URL to the right extraction method:
   - YouTube / TikTok  → yt-dlp (fast, exact numbers, no browser)
   - Instagram / RedNote → Firefox screenshot + Claude Vision
 """
+
 from difflib import SequenceMatcher
-from src.lark_reader    import get_new_rows, get_dated_rows_for_platforms
-from src.lark_writer    import write_row
+from src.lark_reader import get_new_rows, get_dated_rows_for_platforms
+from src.lark_writer import write_row
 from src.metadata_reader import get_metadata
-from src.browser_reader  import get_screenshot
-from src.vision_extract  import extract_from_screenshot
-from src.logger          import get_logger
+from src.browser_reader import get_screenshot
+from src.vision_extract import extract_from_screenshot
+from src.logger import get_logger
 
 log = get_logger("processor")
 
@@ -30,7 +31,7 @@ def _route(url: str) -> str:
         return "ytdlp"
     if any(p in url_lower for p in VISION_PLATFORMS):
         return "vision"
-    return "ytdlp"   # default: try yt-dlp for unknown platforms
+    return "ytdlp"  # default: try yt-dlp for unknown platforms
 
 
 def _caption_similarity(a: str, b: str) -> float:
@@ -50,7 +51,8 @@ def _fill_dates_from_same_videos(results: list) -> list:
     in an earlier watcher cycle).
     """
     undated_ig = [
-        r for r in results
+        r
+        for r in results
         if r["status"] == "ok"
         and not r["data"].get("posted_date")
         and "instagram.com" in r["url"]
@@ -60,8 +62,11 @@ def _fill_dates_from_same_videos(results: list) -> list:
 
     # Dated rows from this run
     from_run = [
-        {"url": r["url"], "date": r["data"]["posted_date"],
-         "caption": r["data"].get("caption", "")}
+        {
+            "url": r["url"],
+            "date": r["data"]["posted_date"],
+            "caption": r["data"].get("caption", ""),
+        }
         for r in results
         if r["status"] == "ok"
         and r["data"].get("posted_date")
@@ -77,8 +82,12 @@ def _fill_dates_from_same_videos(results: list) -> list:
 
     seen = {r["url"] for r in from_run}
     all_dated = from_run + [r for r in from_lark if r["url"] not in seen]
-    log.debug("Cross-platform date pool: %d rows (%d this run, %d from Lark)",
-              len(all_dated), len(from_run), len(from_lark))
+    log.debug(
+        "Cross-platform date pool: %d rows (%d this run, %d from Lark)",
+        len(all_dated),
+        len(from_run),
+        len(from_lark),
+    )
 
     for ig in undated_ig:
         ig_cap = (ig["data"].get("caption") or "").strip()
@@ -98,21 +107,24 @@ def _fill_dates_from_same_videos(results: list) -> list:
             log.info(
                 "Cross-platform date fill: Instagram ← %s  "
                 "(%.0f%% caption match with YouTube)",
-                matched_date, best_ratio * 100,
+                matched_date,
+                best_ratio * 100,
             )
             try:
                 write_row(
-                    record_id   = ig["record_id"],
-                    posted_date = matched_date,
-                    caption     = ig["data"]["caption"],
-                    view_count  = ig["data"]["view_count"],
+                    record_id=ig["record_id"],
+                    posted_date=matched_date,
+                    caption=ig["data"]["caption"],
+                    view_count=ig["data"]["view_count"],
                 )
                 log.info("  ✓ Date back-filled in Lark (record_id=%s)", ig["record_id"])
             except Exception as exc:
                 log.error("Cross-platform date fill write failed: %s", exc)
         else:
-            log.debug("Cross-platform date: best match ratio=%.2f (need ≥0.75), no fill",
-                      best_ratio)
+            log.debug(
+                "Cross-platform date: best match ratio=%.2f (need ≥0.75), no fill",
+                best_ratio,
+            )
 
     return results
 
@@ -139,51 +151,84 @@ def process_all() -> list:
             else:
                 log.debug("Using Firefox + Vision for: %s", url)
                 main_ss, thumb_ss, dom_date, dom_vc = get_screenshot(url)
-                log.debug("Screenshots — main=%d bytes, thumb=%s bytes, dom_date=%s, dom_vc=%s",
-                          len(main_ss), len(thumb_ss) if thumb_ss else "N/A",
-                          dom_date, dom_vc)
+                log.debug(
+                    "Screenshots — main=%d bytes, thumb=%s bytes, dom_date=%s, dom_vc=%s",
+                    len(main_ss),
+                    len(thumb_ss) if thumb_ss else "N/A",
+                    dom_date,
+                    dom_vc,
+                )
 
                 if thumb_ss is not None:
                     # Instagram: split-view screenshot → caption + date
                     #            reel page screenshot (thumb_ss) → view count OCR fallback
                     #            DOM <time> → date; script data → view count (best sources)
-                    log.debug("Instagram: extracting caption from split-view screenshot")
+                    log.debug(
+                        "Instagram: extracting caption from split-view screenshot"
+                    )
                     reel_data = extract_from_screenshot(main_ss)
-                    log.debug("Instagram: extracting view count from reel page screenshot (OCR fallback)")
+                    log.debug(
+                        "Instagram: extracting view count from reel page screenshot (OCR fallback)"
+                    )
                     reel_page_data = extract_from_screenshot(thumb_ss)
                     data = {
                         "posted_date": dom_date or reel_data["posted_date"],
-                        "caption":     reel_data["caption"],
-                        "view_count":  (dom_vc
-                                        or reel_page_data["view_count"]
-                                        or reel_data["view_count"]),
+                        "caption": reel_data["caption"],
+                        "view_count": (
+                            dom_vc
+                            or reel_page_data["view_count"]
+                            or reel_data["view_count"]
+                        ),
                     }
-                    log.debug("Instagram — dom_date=%s dom_vc=%s reel_page_vc=%s caption=%r",
-                              dom_date, dom_vc, reel_page_data["view_count"],
-                              data["caption"][:40])
+                    log.debug(
+                        "Instagram — dom_date=%s dom_vc=%s reel_page_vc=%s caption=%r",
+                        dom_date,
+                        dom_vc,
+                        reel_page_data["view_count"],
+                        data["caption"][:40],
+                    )
                 else:
                     # RedNote / other vision platforms — single screenshot
                     data = extract_from_screenshot(main_ss)
 
-            log.info("  Extracted → date=%s  views=%s  caption=%r",
-                     data["posted_date"], data["view_count"], data["caption"][:50])
+            log.info(
+                "  Extracted → date=%s  views=%s  caption=%r",
+                data["posted_date"],
+                data["view_count"],
+                data["caption"][:50],
+            )
+
+            # 0 views is never credible — treat as missing so the row stays
+            # unfilled and gets retried in the next cycle.
+            if data.get("view_count") == 0:
+                log.warning(
+                    "  view_count=0 looks wrong — skipping view count (will retry)"
+                )
+                data["view_count"] = None
 
             write_row(
-                record_id   = record_id,
-                posted_date = data["posted_date"],
-                caption     = data["caption"],
-                view_count  = data["view_count"],
+                record_id=record_id,
+                posted_date=data["posted_date"],
+                caption=data["caption"],
+                view_count=data["view_count"],
             )
 
             log.info("  ✓ Written to Lark (record_id=%s)", record_id)
             # Include record_id so _fill_dates_from_same_videos can re-write if needed
-            results.append({"url": url, "record_id": record_id,
-                            "status": "ok", "data": data})
+            results.append(
+                {"url": url, "record_id": record_id, "status": "ok", "data": data}
+            )
 
         except Exception as exc:
             log.error("  ✗ FAILED for %s — %s", url[:80], exc, exc_info=True)
-            results.append({"url": url, "record_id": record_id,
-                            "status": "error", "error": str(exc)})
+            results.append(
+                {
+                    "url": url,
+                    "record_id": record_id,
+                    "status": "error",
+                    "error": str(exc),
+                }
+            )
 
     # Cross-platform date fill: copy YouTube date to Instagram if same video
     results = _fill_dates_from_same_videos(results)
