@@ -163,10 +163,26 @@ def extract_from_screenshot(screenshot_bytes: bytes, prompt: str = None) -> dict
         if vc.lower() in ("null", "none", ""):
             vc = None
         else:
-            try:
-                vc = int(float(vc))
-            except ValueError:
-                vc = None
+            vc = _parse_view_count(vc)
+
+
+def _parse_view_count(text: str):
+    """Parse view count strings including K/M shorthand and Chinese 万."""
+    text = text.strip().replace(",", "")
+    # Chinese 万 (10,000) — e.g. "1.2万" → 12000
+    m = re.match(r"^([\d.]+)\s*万$", text)
+    if m:
+        return int(float(m.group(1)) * 10_000)
+    # K / M shorthand
+    m = re.match(r"^([\d.]+)\s*([KkMm])$", text)
+    if m:
+        num = float(m.group(1))
+        mult = {"k": 1_000, "m": 1_000_000}[m.group(2).lower()]
+        return int(num * mult)
+    try:
+        return int(float(text))
+    except ValueError:
+        return None
 
     return {
         "posted_date": _resolve_relative_date(data.get("posted_date")),
