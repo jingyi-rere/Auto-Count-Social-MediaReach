@@ -35,7 +35,7 @@ Extract exactly these 3 pieces of information:
    - Look for: a number near a play button ▶, eye icon 👁, or the word "views", "plays", "次播放", "plays".
    - On Instagram reel page: look for text like "X plays" or "X views" shown below or beside the video. Also check any number overlaid on the video player in the bottom-left corner.
    - On TikTok: look for a number at the top left of the video or below.
-   - On RedNote: look for 👁 eye icon with a number.
+   - On RedNote (小红书): look for a number near 👁 eye icon, or near "播放" (plays), or "观看" (views). The count is often shown in the bottom-left or bottom-right of the video thumbnail as a white number (e.g. "1.2万" = 12000, "3.4万" = 34000, "1.2K" = 1200). Convert 万: 1万=10000, 1.2万=12000, 3.4万=34000.
    - Convert shorthand: 1.2K → 1200, 3.4M → 3400000, 10.3K → 10300, 21.6K → 21600.
    - Return null if not visible.
 
