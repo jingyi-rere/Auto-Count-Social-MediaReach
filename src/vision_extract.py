@@ -2,6 +2,7 @@
 vision_extract.py — Sends a screenshot to Claude Haiku Vision and
 extracts posted_date, caption (no hashtags), and view_count as JSON.
 """
+
 import io
 import os
 import re
@@ -9,8 +10,8 @@ import json
 import base64
 import anthropic
 from PIL import Image
-from src._env   import *  # noqa: loads .env from project root
-from src.utils  import clean_caption as _clean_caption  # shared, single source of truth
+from src._env import *  # noqa: loads .env from project root
+from src.utils import clean_caption as _clean_caption  # shared, single source of truth
 
 MODEL = "claude-haiku-4-5"
 
@@ -21,7 +22,7 @@ Extract exactly these 3 pieces of information:
 
 1. posted_date — The date/time the video was originally posted.
    - Format as YYYY-MM-DD when possible.
-   - If only relative text is shown (e.g. "3 days ago", "15w", "1 week ago"), return that text as-is.
+   - If only relative text is shown (e.g. "3 days ago", "15w", "1 week ago"), still return that text as-is — it will be resolved by the caller.
    - Return null if not visible anywhere.
 
 2. caption — The video title, caption, or description text.
@@ -62,9 +63,7 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(
-            api_key=os.getenv("ANTHROPIC_API_KEY")
-        )
+        _client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
     return _client
 
 
@@ -87,7 +86,8 @@ def _compress_image(screenshot_bytes: bytes, max_bytes: int = 4_500_000) -> tupl
     img = img.convert("RGB")
     quality = 85
     while quality >= 40:
-        buf.seek(0); buf.truncate()
+        buf.seek(0)
+        buf.truncate()
         img.save(buf, format="JPEG", quality=quality, optimize=True)
         if buf.tell() <= max_bytes:
             break
@@ -149,8 +149,8 @@ def extract_from_screenshot(screenshot_bytes: bytes, prompt: str = None) -> dict
 
         data = {
             "posted_date": _rx("posted_date"),
-            "caption":     _rx("caption"),
-            "view_count":  _rx("view_count"),
+            "caption": _rx("caption"),
+            "view_count": _rx("view_count"),
         }
 
     # Normalise view_count to int or None
@@ -169,6 +169,6 @@ def extract_from_screenshot(screenshot_bytes: bytes, prompt: str = None) -> dict
 
     return {
         "posted_date": data.get("posted_date"),
-        "caption":     _clean_caption(str(data.get("caption") or "")),
-        "view_count":  vc,
+        "caption": _clean_caption(str(data.get("caption") or "")),
+        "view_count": vc,
     }
