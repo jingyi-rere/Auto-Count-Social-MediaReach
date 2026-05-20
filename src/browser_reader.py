@@ -339,6 +339,32 @@ async def _get_instagram_data(page, reel_url: str):
                 except Exception as exc:
                     log.debug("Instagram: date extraction failed: %s", exc)
 
+                # Extract caption from DOM — remove <a> links (username + hashtag
+                # links) and keep the plain text. Stops naturally at any truncation
+                # point; no need to click "more".
+                dom_caption = None
+                try:
+                    raw_caption = await page.evaluate(
+                        """
+                        () => {
+                            const article = document.querySelector('article');
+                            if (!article) return null;
+                            for (const s of article.querySelectorAll('span[dir="auto"]')) {
+                                const clone = s.cloneNode(true);
+                                clone.querySelectorAll('a').forEach(a => a.remove());
+                                const txt = clone.textContent.trim();
+                                if (txt.length >= 3) return txt;
+                            }
+                            return null;
+                        }
+                    """
+                    )
+                    if raw_caption:
+                        dom_caption = raw_caption
+                        log.info("Instagram: DOM caption = %r", dom_caption[:80])
+                except Exception as exc:
+                    log.debug("Instagram: DOM caption extraction failed: %s", exc)
+
                 post_screenshot = await page.screenshot(full_page=False)
                 log.debug(
                     "Instagram: split-view screenshot (%d bytes)", len(post_screenshot)
