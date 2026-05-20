@@ -434,5 +434,5 @@ async def _take_screenshot(url: str):
 
 
 def get_screenshot(url: str):
-    """Returns (main_screenshot, thumb_screenshot_or_None, dom_date_or_None, dom_view_count_or_None)."""
+    """Returns (main_screenshot, thumb_screenshot_or_None, dom_date_or_None, dom_view_count_or_None, dom_caption_or_None)."""
     return asyncio.run(_take_screenshot(url))
