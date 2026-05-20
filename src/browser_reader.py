@@ -125,7 +125,7 @@ async def _screenshot_url(page, url: str) -> bytes:
 
 async def _get_instagram_data(page, reel_url: str):
     """
-    Returns (post_screenshot, thumbnail_screenshot, shortcode, dom_date, dom_view_count).
+    Returns (post_screenshot, thumbnail_screenshot, shortcode, dom_date, dom_view_count, dom_caption).
 
     Flow:
       1. Load reel page. Immediately capture page.url + reel page screenshot

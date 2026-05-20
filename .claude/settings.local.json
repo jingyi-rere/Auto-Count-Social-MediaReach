@@ -60,7 +60,10 @@
       "Bash(mkdir -p ~/.claude/skills/live-test)",
       "Bash(xargs kill)",
       "Bash(grep -v \"\\\\.docx$\")",
-      "Bash(sort -k2)"
+      "Bash(sort -k2)",
+      "WebFetch(domain:www.skills.sh)",
+      "WebFetch(domain:github.com)",
+      "Bash(cat \"/Users/jjjyyy/.claude/settings.json\" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo \"not found\" *)"
     ],
     "deny": [
       "Bash(rm -rf *)",
