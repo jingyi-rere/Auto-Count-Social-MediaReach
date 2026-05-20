@@ -151,30 +151,26 @@ def process_all() -> list:
                 data = get_metadata(url)
             else:
                 log.debug("Using Firefox + Vision for: %s", url)
-                main_ss, thumb_ss, dom_date, dom_vc = get_screenshot(url)
+                main_ss, thumb_ss, dom_date, dom_vc, dom_cap = get_screenshot(url)
                 log.debug(
-                    "Screenshots — main=%d bytes, thumb=%s bytes, dom_date=%s, dom_vc=%s",
+                    "Screenshots — main=%d bytes, thumb=%s bytes, dom_date=%s, dom_vc=%s, dom_cap=%r",
                     len(main_ss),
                     len(thumb_ss) if thumb_ss else "N/A",
                     dom_date,
                     dom_vc,
+                    (dom_cap or "")[:40],
                 )
 
                 if thumb_ss is not None:
-                    # Instagram: split-view screenshot → caption + date
-                    #            reel page screenshot (thumb_ss) → view count OCR fallback
-                    #            DOM <time> → date; script data → view count (best sources)
-                    log.debug(
-                        "Instagram: extracting caption from split-view screenshot"
-                    )
+                    # Instagram: DOM caption is most reliable — Vision OCR is fallback only
                     reel_data = extract_from_screenshot(main_ss)
-                    log.debug(
-                        "Instagram: extracting view count from reel page screenshot (OCR fallback)"
-                    )
                     reel_page_data = extract_from_screenshot(thumb_ss)
+                    caption = (
+                        _clean_caption(dom_cap) if dom_cap else reel_data["caption"]
+                    )
                     data = {
                         "posted_date": dom_date or reel_data["posted_date"],
-                        "caption": reel_data["caption"],
+                        "caption": caption,
                         "view_count": (
                             dom_vc
                             or reel_page_data["view_count"]
@@ -182,11 +178,11 @@ def process_all() -> list:
                         ),
                     }
                     log.debug(
-                        "Instagram — dom_date=%s dom_vc=%s reel_page_vc=%s caption=%r",
+                        "Instagram — dom_date=%s dom_vc=%s dom_cap=%r vision_cap=%r",
                         dom_date,
                         dom_vc,
-                        reel_page_data["view_count"],
-                        data["caption"][:40],
+                        (dom_cap or "")[:40],
+                        reel_data["caption"][:40],
                     )
                 else:
                     # RedNote / other vision platforms — single screenshot
