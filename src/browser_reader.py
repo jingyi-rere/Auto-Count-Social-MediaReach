@@ -387,10 +387,8 @@ async def _get_instagram_data(page, reel_url: str):
                 except Exception as exc:
                     log.debug("Instagram: date extraction failed: %s", exc)
 
-                # Extract caption from DOM — remove <a> links (username + hashtag
-                # links) and keep the plain text. Stops naturally at any truncation
-                # point; no need to click "more".
-                dom_caption = None
+                # Split-view DOM caption fallback — only used if reel-page meta
+                # extraction above found nothing.
                 try:
                     raw_caption = await page.evaluate(
                         """
