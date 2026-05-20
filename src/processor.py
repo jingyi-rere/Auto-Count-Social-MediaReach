@@ -10,6 +10,7 @@ from src.lark_writer import write_row
 from src.metadata_reader import get_metadata
 from src.browser_reader import get_screenshot
 from src.vision_extract import extract_from_screenshot
+from src.utils import clean_caption as _clean_caption
 from src.logger import get_logger
 
 log = get_logger("processor")
