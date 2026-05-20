@@ -351,6 +351,9 @@ async def _get_instagram_data(page, reel_url: str):
                             const article = document.querySelector('article');
                             if (!article) return null;
                             for (const s of article.querySelectorAll('span[dir="auto"]')) {
+                                // Caption span always has <a> links (username + hashtags).
+                                // Header/audio spans are plain text with no <a> — skip them.
+                                if (!s.querySelector('a')) continue;
                                 const clone = s.cloneNode(true);
                                 clone.querySelectorAll('a').forEach(a => a.remove());
                                 const txt = clone.textContent.trim();
