@@ -552,7 +552,9 @@ class TestPositiveProcessAll:
         monkeypatch.setattr(
             processor,
             "get_screenshot",
-            MagicMock(return_value=(fake_split_ss, fake_reel_page_ss, None, None)),
+            MagicMock(
+                return_value=(fake_split_ss, fake_reel_page_ss, None, None, None)
+            ),
         )
 
         def mock_extract(ss, prompt=None):
