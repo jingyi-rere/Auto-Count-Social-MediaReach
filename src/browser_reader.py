@@ -351,9 +351,13 @@ async def _get_instagram_data(page, reel_url: str):
                             const article = document.querySelector('article');
                             if (!article) return null;
                             for (const s of article.querySelectorAll('span[dir="auto"]')) {
-                                // Caption span always has <a> links (username + hashtags).
-                                // Header/audio spans are plain text with no <a> — skip them.
                                 if (!s.querySelector('a')) continue;
+                                // Caption span starts directly with the username <a> link —
+                                // no text node before it. "Liked by X" spans have the text
+                                // "Liked by " before their first link — skip those.
+                                const first = s.childNodes[0];
+                                if (first && first.nodeType === Node.TEXT_NODE
+                                        && first.textContent.trim().length > 0) continue;
                                 const clone = s.cloneNode(true);
                                 clone.querySelectorAll('a').forEach(a => a.remove());
                                 const txt = clone.textContent.trim();
