@@ -289,7 +289,7 @@ async def _get_instagram_data(page, reel_url: str):
     thumbnail_screenshot = reel_page_screenshot
     post_screenshot = None
     dom_date = None
-    dom_caption = None
+    # dom_caption may already be set from reel-page meta extraction above
 
     if not profile_reels_url:
         log.warning("Instagram: could not find profile reels URL")
