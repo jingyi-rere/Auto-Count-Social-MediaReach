@@ -412,9 +412,11 @@ async def _get_instagram_data(page, reel_url: str):
                         }
                     """
                     )
-                    if raw_caption:
+                    if raw_caption and dom_caption is None:
                         dom_caption = raw_caption
-                        log.info("Instagram: DOM caption = %r", dom_caption[:80])
+                        log.info(
+                            "Instagram: split-view DOM caption = %r", dom_caption[:80]
+                        )
                 except Exception as exc:
                     log.debug("Instagram: DOM caption extraction failed: %s", exc)
 
