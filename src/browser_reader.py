@@ -422,13 +422,13 @@ async def _take_screenshot(url: str):
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
         try:
             if "instagram.com" in url:
-                post_ss, thumb_ss, sc, dom_date, dom_vc = await _get_instagram_data(
-                    page, url
+                post_ss, thumb_ss, sc, dom_date, dom_vc, dom_cap = (
+                    await _get_instagram_data(page, url)
                 )
-                return post_ss, thumb_ss, dom_date, dom_vc
+                return post_ss, thumb_ss, dom_date, dom_vc, dom_cap
             else:
                 ss = await _screenshot_url(page, url)
-                return ss, None, None, None
+                return ss, None, None, None, None
         finally:
             await ctx.close()
 
