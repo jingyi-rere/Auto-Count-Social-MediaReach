@@ -5,20 +5,22 @@ Verifies URL routing (which platform → which extraction method)
 and the two-screenshot Instagram merge logic — without any real
 network calls or browser launches.
 """
+
 import os
 import pytest
 from unittest.mock import MagicMock, patch, call
 
-os.environ.setdefault("LARK_APP_ID",       "test_app_id")
-os.environ.setdefault("LARK_APP_SECRET",   "test_secret")
-os.environ.setdefault("LARK_APP_TOKEN",    "test_token")
-os.environ.setdefault("LARK_TABLE_ID",     "test_table")
+os.environ.setdefault("LARK_APP_ID", "test_app_id")
+os.environ.setdefault("LARK_APP_SECRET", "test_secret")
+os.environ.setdefault("LARK_APP_TOKEN", "test_token")
+os.environ.setdefault("LARK_TABLE_ID", "test_table")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test_key")
 
 from src.processor import _route
 
 
 # ── URL routing ─────────────────────────────────────────────────
+
 
 class TestRoute:
     # YouTube → yt-dlp
@@ -64,25 +66,30 @@ class TestRoute:
 
 # ── process_all — integration mock ──────────────────────────────
 
+
 class TestProcessAll:
     def test_youtube_uses_metadata_reader(self, monkeypatch):
         """process_all should call get_metadata (not get_screenshot) for YouTube."""
         from src import processor
 
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            ("rec_yt1", "https://www.youtube.com/watch?v=test123")
-        ])
-        mock_metadata = MagicMock(return_value={
-            "posted_date": "2024-03-15",
-            "caption": "Test video",
-            "view_count": 1000,
-        })
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [("rec_yt1", "https://www.youtube.com/watch?v=test123")],
+        )
+        mock_metadata = MagicMock(
+            return_value={
+                "posted_date": "2024-03-15",
+                "caption": "Test video",
+                "view_count": 1000,
+            }
+        )
         mock_screenshot = MagicMock()
         mock_write = MagicMock()
 
-        monkeypatch.setattr(processor, "get_metadata",  mock_metadata)
+        monkeypatch.setattr(processor, "get_metadata", mock_metadata)
         monkeypatch.setattr(processor, "get_screenshot", mock_screenshot)
-        monkeypatch.setattr(processor, "write_row",      mock_write)
+        monkeypatch.setattr(processor, "write_row", mock_write)
 
         processor.process_all()
 
@@ -99,17 +106,30 @@ class TestProcessAll:
         """Instagram should call get_screenshot and merge split-view + reel-page data."""
         from src import processor
 
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            ("rec_ig1", "https://www.instagram.com/reel/DUiVAXaD2Y1/")
-        ])
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [("rec_ig1", "https://www.instagram.com/reel/DUiVAXaD2Y1/")],
+        )
 
-        fake_reel_ss = b"reel_bytes"     # main_ss  → split-view screenshot
-        fake_reel_page_ss = b"reel_page" # thumb_ss → reel page screenshot
-        monkeypatch.setattr(processor, "get_screenshot",
-                            MagicMock(return_value=(fake_reel_ss, fake_reel_page_ss, None, None)))
+        fake_reel_ss = b"reel_bytes"  # main_ss  → split-view screenshot
+        fake_reel_page_ss = b"reel_page"  # thumb_ss → reel page screenshot
+        monkeypatch.setattr(
+            processor,
+            "get_screenshot",
+            MagicMock(return_value=(fake_reel_ss, fake_reel_page_ss, None, None, None)),
+        )
 
-        split_data = {"posted_date": "2024-03-15", "caption": "Good caption", "view_count": None}
-        reel_page_data = {"posted_date": None, "caption": "No caption", "view_count": 21600}
+        split_data = {
+            "posted_date": "2024-03-15",
+            "caption": "Good caption",
+            "view_count": None,
+        }
+        reel_page_data = {
+            "posted_date": None,
+            "caption": "No caption",
+            "view_count": 21600,
+        }
 
         def mock_extract(ss, prompt=None):
             # Both calls use default prompt; distinguish by screenshot bytes
@@ -134,6 +154,7 @@ class TestProcessAll:
 
     def test_no_new_rows_returns_empty(self, monkeypatch):
         from src import processor
+
         monkeypatch.setattr(processor, "get_new_rows", lambda: [])
         results = processor.process_all()
         assert results == []
@@ -142,11 +163,16 @@ class TestProcessAll:
         """If one URL fails, the next one should still be processed."""
         from src import processor
 
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            ("rec1", "https://www.youtube.com/watch?v=bad"),
-            ("rec2", "https://www.youtube.com/watch?v=good"),
-        ])
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [
+                ("rec1", "https://www.youtube.com/watch?v=bad"),
+                ("rec2", "https://www.youtube.com/watch?v=good"),
+            ],
+        )
         call_count = 0
+
         def mock_metadata(url):
             nonlocal call_count
             call_count += 1
