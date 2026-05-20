@@ -251,6 +251,8 @@ async def _get_instagram_data(page, reel_url: str):
                 .strip()
                 .strip('"')
             )
+            # Instagram og:description wraps the caption as "text". — strip trailing artifact
+            cleaned = _re2.sub(r'\s*"\.$', "", cleaned).strip()
             if cleaned and len(cleaned) >= 3:
                 dom_caption = cleaned
                 log.info("Instagram: reel-page caption = %r", dom_caption[:80])
