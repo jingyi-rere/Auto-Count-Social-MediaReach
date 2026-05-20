@@ -152,7 +152,7 @@ async def _get_instagram_data(page, reel_url: str):
 
     if not _re.fullmatch(r"[A-Za-z0-9_\-]+", shortcode):
         log.error("Instagram: unsafe shortcode '%s' — aborting", shortcode)
-        return await page.screenshot(full_page=False), None, shortcode, None, None
+        return await page.screenshot(full_page=False), None, shortcode, None, None, None
 
     reel_page_screenshot = await page.screenshot(full_page=False)
     log.info(
