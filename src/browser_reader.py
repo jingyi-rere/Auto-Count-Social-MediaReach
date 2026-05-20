@@ -419,7 +419,7 @@ async def _take_screenshot(url: str):
     async with async_playwright() as p:
         ctx = await p.firefox.launch_persistent_context(
             str(FIREFOX_PROFILE_DIR),
-            headless=True,
+            headless=False,
             viewport={"width": 1280, "height": 900},
         )
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
