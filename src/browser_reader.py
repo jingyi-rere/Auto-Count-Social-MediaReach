@@ -210,6 +210,53 @@ async def _get_instagram_data(page, reel_url: str):
     except Exception as exc:
         log.debug("Instagram: reel-page view count failed: %s", exc)
 
+    # Extract caption from reel page meta tags — most reliable source.
+    # og:description format: "X likes, Y comments - username on Instagram: "caption""
+    # description format: may contain the caption more directly.
+    dom_caption = None
+    try:
+        raw_og = await page.evaluate(
+            """
+            () => {
+                // 1. JSON-LD: caption is in description field
+                for (const script of document.querySelectorAll(
+                        'script[type="application/ld+json"]')) {
+                    try {
+                        const d = JSON.parse(script.textContent);
+                        if (d.description && d.description.length > 3) return d.description;
+                        if (d.caption && d.caption.length > 3) return d.caption;
+                    } catch {}
+                }
+                // 2. og:description — "X likes, Y comments - user on Instagram: "caption""
+                const og = document.querySelector('meta[property="og:description"]');
+                if (og) return og.getAttribute('content') || null;
+                // 3. meta description
+                const desc = document.querySelector('meta[name="description"]');
+                if (desc) return desc.getAttribute('content') || null;
+                return null;
+            }
+        """
+        )
+        if raw_og:
+            # Strip the "X likes, Y comments - username on Instagram: " prefix if present
+            import re as _re2
+
+            cleaned = (
+                _re2.sub(
+                    r"^\d[\d,.]* (likes?|views?)[^:]*:\s*",
+                    "",
+                    raw_og,
+                    flags=_re2.IGNORECASE,
+                )
+                .strip()
+                .strip('"')
+            )
+            if cleaned and len(cleaned) >= 3:
+                dom_caption = cleaned
+                log.info("Instagram: reel-page caption = %r", dom_caption[:80])
+    except Exception as exc:
+        log.debug("Instagram: reel-page caption failed: %s", exc)
+
     # Find author profile reels URL
     BLOCKED = {
         "reel",
