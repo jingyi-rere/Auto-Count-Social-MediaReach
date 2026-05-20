@@ -385,7 +385,14 @@ async def _get_instagram_data(page, reel_url: str):
         await page.wait_for_timeout(500)
         post_screenshot = await page.screenshot(full_page=False)
 
-    return post_screenshot, thumbnail_screenshot, shortcode, dom_date, dom_view_count
+    return (
+        post_screenshot,
+        thumbnail_screenshot,
+        shortcode,
+        dom_date,
+        dom_view_count,
+        dom_caption,
+    )
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
