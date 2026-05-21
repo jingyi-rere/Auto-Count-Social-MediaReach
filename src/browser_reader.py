@@ -474,9 +474,19 @@ async def _take_screenshot(url: str):
             str(FIREFOX_PROFILE_DIR),
             headless=False,
             viewport={"width": 1280, "height": 900},
-            args=[
-                "--window-position=9999,0"
-            ],  # open off-screen so it doesn't interrupt
+        )
+        # Push Firefox behind the current active app so it doesn't interrupt the user.
+        import subprocess as _sp
+
+        _sp.Popen(
+            [
+                "osascript",
+                "-e",
+                'tell application "System Events" to set frontmost of every process'
+                ' whose name is "firefox" to false',
+            ],
+            stdout=_sp.DEVNULL,
+            stderr=_sp.DEVNULL,
         )
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
         try:
