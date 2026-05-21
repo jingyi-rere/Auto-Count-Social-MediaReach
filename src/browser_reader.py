@@ -147,42 +147,33 @@ async def _get_tiktok_data(page, post_url: str):
             () => {
                 const t = document.querySelector('time[datetime]');
                 if (t) return t.getAttribute('datetime');
-                // Fallback: look for date text like "2026-03-27" in page
+                // TikTok shows "· 3-27" (month-day) — capture it
                 const body = document.body.innerText;
-                const m = body.match(/\\b(20\\d{2}-\\d{2}-\\d{2})\\b/);
-                return m ? m[1] : null;
+                let m = body.match(/\\b(20\\d{2}-\\d{2}-\\d{2})\\b/);
+                if (m) return m[1];
+                m = body.match(/·\\s*(\\d{1,2}-\\d{1,2})\\b/);
+                if (m) return m[1];
+                return null;
             }
         """
         )
         if raw_dt:
+            # Full ISO date
             dom_date = _parse_ig_date(raw_dt)
+            if not dom_date:
+                # "M-D" format — prepend current year
+                import re as _re2
+
+                md = _re2.match(r"^(\d{1,2})-(\d{1,2})$", raw_dt)
+                if md:
+                    dom_date = f"{date.today().year}-{int(md.group(1)):02d}-{int(md.group(2)):02d}"
             log.info("TikTok: date = %s (raw: %s)", dom_date, raw_dt)
     except Exception as exc:
         log.debug("TikTok: date extraction failed: %s", exc)
 
+    # TikTok hides view counts from non-logged-in users — leave as None
     dom_view_count = None
-    try:
-        raw_vc = await page.evaluate(
-            """
-            () => {
-                // Try data-e2e selectors first
-                const el = document.querySelector('[data-e2e="video-views-count"]')
-                    || document.querySelector('[data-e2e="like-count"]');
-                if (el) return el.innerText.trim();
-                // Fallback: match "95 Views" or "95 views" in page text
-                const body = document.body.innerText;
-                const m = body.match(/([\\d,.]+[KkMm]?)\\s*(?:views?)/i);
-                return m ? m[1] : null;
-            }
-        """
-        )
-        dom_view_count = _parse_count_text(raw_vc)
-        if dom_view_count is not None:
-            log.info("TikTok: view count = %d (raw: %s)", dom_view_count, raw_vc)
-        else:
-            log.debug("TikTok: view count not found in DOM")
-    except Exception as exc:
-        log.debug("TikTok: view count extraction failed: %s", exc)
+    log.debug("TikTok: view count not available without login")
 
     post_screenshot = await page.screenshot(full_page=False)
     return post_screenshot, None, dom_date, dom_view_count, dom_caption
