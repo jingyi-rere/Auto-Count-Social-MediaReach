@@ -469,24 +469,26 @@ def _release_firefox_lock():
 
 async def _take_screenshot(url: str):
     _release_firefox_lock()
+    # Capture frontmost app BEFORE Firefox launches so we can restore focus after.
+    import subprocess as _sp
+
+    _prev = _sp.run(
+        [
+            "osascript",
+            "-e",
+            'tell application "System Events" to get name of first process whose frontmost is true',
+        ],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
     async with async_playwright() as p:
         ctx = await p.firefox.launch_persistent_context(
             str(FIREFOX_PROFILE_DIR),
             headless=False,
             viewport={"width": 1280, "height": 900},
         )
-        # Immediately give focus back to whatever app the user had open before Firefox launched.
-        import subprocess as _sp
-
-        _prev = _sp.run(
-            [
-                "osascript",
-                "-e",
-                'tell application "System Events" to get name of first process whose frontmost is true',
-            ],
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
+        # Give focus straight back to whatever the user had open.
         if _prev and _prev.lower() != "firefox":
             _sp.Popen(
                 ["osascript", "-e", f'tell application "{_prev}" to activate'],
