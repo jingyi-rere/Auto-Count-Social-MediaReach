@@ -109,6 +109,86 @@ def _js_find_thumbnail(shortcode: str) -> str:
     """
 
 
+# ── X (Twitter) extractor ─────────────────────────────────────────────────────
+
+
+async def _get_x_data(page, post_url: str):
+    """
+    Extract post data from X (Twitter).
+    Returns (post_screenshot, None, dom_date, dom_view_count, dom_caption).
+
+    1. Load post page → caption from tweetText, date from <time datetime>.
+    2. Load /analytics page → Impressions count.
+    """
+    clean_url = post_url.split("?")[0].rstrip("/")
+    analytics_url = clean_url + "/analytics"
+
+    log.info("X: loading post page %s", post_url[:80])
+    await page.goto(post_url, wait_until="domcontentloaded", timeout=45_000)
+    await page.wait_for_timeout(3_000)
+
+    dom_caption = None
+    try:
+        raw_cap = await page.evaluate(
+            """
+            () => {
+                const el = document.querySelector('[data-testid="tweetText"]');
+                return el ? el.innerText.trim() : null;
+            }
+        """
+        )
+        if raw_cap and len(raw_cap) >= 3:
+            dom_caption = raw_cap
+            log.info("X: caption = %r", dom_caption[:80])
+    except Exception as exc:
+        log.debug("X: caption extraction failed: %s", exc)
+
+    dom_date = None
+    try:
+        raw_dt = await page.evaluate(
+            """
+            () => {
+                const t = document.querySelector('time[datetime]');
+                return t ? t.getAttribute('datetime') : null;
+            }
+        """
+        )
+        if raw_dt:
+            dom_date = _parse_ig_date(raw_dt)
+            log.info("X: date = %s (raw: %s)", dom_date, raw_dt)
+    except Exception as exc:
+        log.debug("X: date extraction failed: %s", exc)
+
+    post_screenshot = await page.screenshot(full_page=False)
+
+    dom_view_count = None
+    try:
+        log.info("X: loading analytics page %s", analytics_url)
+        await page.goto(analytics_url, wait_until="domcontentloaded", timeout=30_000)
+        await page.wait_for_timeout(3_000)
+        raw_vc = await page.evaluate(
+            """
+            () => {
+                const body = document.body.innerText;
+                let m = body.match(/([\d,]+)\s*\n\s*Impressions/i);
+                if (m) return m[1].replace(/,/g, '');
+                m = body.match(/Impressions\D{0,10}([\d,]+)/i);
+                if (m) return m[1].replace(/,/g, '');
+                return null;
+            }
+        """
+        )
+        dom_view_count = _parse_count_text(raw_vc)
+        if dom_view_count is not None:
+            log.info("X: impressions = %d (raw: %s)", dom_view_count, raw_vc)
+        else:
+            log.debug("X: impressions not found on analytics page")
+    except Exception as exc:
+        log.debug("X: analytics extraction failed: %s", exc)
+
+    return post_screenshot, None, dom_date, dom_view_count, dom_caption
+
+
 # ── Non-Instagram helper ───────────────────────────────────────────────────────
 
 
