@@ -180,7 +180,7 @@ async def _get_x_data(page, post_url: str):
         else:
             log.info("X: view count not found on post page")
     except Exception as exc:
-        log.debug("X: view count extraction failed: %s", exc)
+        log.info("X: view count extraction FAILED: %s", exc)
 
     post_screenshot = await page.screenshot(full_page=False)
 
