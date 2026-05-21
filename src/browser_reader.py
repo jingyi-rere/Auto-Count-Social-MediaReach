@@ -114,70 +114,14 @@ def _js_find_thumbnail(shortcode: str) -> str:
 
 async def _get_tiktok_data(page, post_url: str):
     """
-    Extract TikTok post data via DOM.
+    Extract TikTok post data via DOM + embedded script data.
     Returns (post_screenshot, None, dom_date, dom_view_count, dom_caption).
 
     Flow:
-      1. Navigate to author PROFILE first — read the view count while it shows
-         the real number (before the video is marked "Just watched").
-      2. Navigate to the video page — dismiss popup, extract caption + date.
+      1. Navigate to video page → dismiss popup → caption + date
+      2. Read view count from embedded JSON in <script> tags (playCount / play_count)
     """
-    username_m = _re.search(r"tiktok\.com/(@[^/?#]+)", post_url)
-    video_id_m = _re.search(r"/video/(\d+)", post_url)
-
-    # ── Step 1: profile grid → view count (before marking "Just watched") ──────
-    dom_view_count = None
-    if username_m and video_id_m:
-        profile_url = f"https://www.tiktok.com/{username_m.group(1)}"
-        video_id = video_id_m.group(1)
-
-        log.info("TikTok: navigating to profile %s for view count", profile_url)
-        await page.goto(profile_url, wait_until="domcontentloaded", timeout=45_000)
-        await page.wait_for_timeout(5_000)
-        await page.keyboard.press("Escape")
-        await page.wait_for_timeout(800)
-
-        raw_vc = None
-        for _ in range(12):
-            raw_vc = await page.evaluate(
-                """
-                (videoId) => {
-                    // Find the exact video thumbnail <a> by video ID
-                    const link = document.querySelector(
-                        'a[href*="/video/' + videoId + '"]'
-                    );
-                    if (!link) return null;
-                    // Walk only the link's own text nodes (not siblings)
-                    const walker = document.createTreeWalker(
-                        link, NodeFilter.SHOW_TEXT, null, false
-                    );
-                    let node;
-                    while ((node = walker.nextNode())) {
-                        const t = node.textContent.trim();
-                        if (/^[\\d,.]+[KkMm]?$/.test(t)) return t;
-                    }
-                    return null;
-                }
-            """,
-                video_id,
-            )
-            if raw_vc:
-                break
-            await page.evaluate("window.scrollBy(0, 700)")
-            await page.wait_for_timeout(800)
-
-        if raw_vc:
-            dom_view_count = _parse_count_text(raw_vc)
-            log.info(
-                "TikTok: profile grid view count = %s (raw: %s)", dom_view_count, raw_vc
-            )
-        else:
-            log.info("TikTok: video %s not found in profile grid", video_id)
-    else:
-        log.debug("TikTok: could not extract username/video_id from %s", post_url)
-
-    # ── Step 2: video page → caption + date ───────────────────────────────────
-    log.info("TikTok: loading video page %s", post_url[:80])
+    log.info("TikTok: loading %s", post_url[:80])
     await page.goto(post_url, wait_until="domcontentloaded", timeout=45_000)
     await page.wait_for_timeout(5_000)
 
@@ -235,6 +179,32 @@ async def _get_tiktok_data(page, post_url: str):
             log.info("TikTok: date = %s (raw: %s)", dom_date, raw_dt)
     except Exception as exc:
         log.debug("TikTok: date extraction failed: %s", exc)
+
+    # View count from embedded script data (TikTok buries playCount in page scripts)
+    dom_view_count = None
+    try:
+        raw_vc = await page.evaluate(
+            """
+            () => {
+                for (const s of document.querySelectorAll('script')) {
+                    const text = s.textContent || '';
+                    let m = text.match(/"playCount"\\s*:\\s*(\\d+)/);
+                    if (m) return m[1];
+                    m = text.match(/"play_count"\\s*:\\s*(\\d+)/);
+                    if (m) return m[1];
+                    m = text.match(/"diggCount"\\s*:\\s*(\\d+)/);  // fallback: like count (remove if wrong)
+                }
+                return null;
+            }
+        """
+        )
+        dom_view_count = _parse_count_text(raw_vc)
+        if dom_view_count is not None:
+            log.info("TikTok: script view count = %d (raw: %s)", dom_view_count, raw_vc)
+        else:
+            log.info("TikTok: view count not found in page scripts")
+    except Exception as exc:
+        log.debug("TikTok: script view count failed: %s", exc)
 
     post_screenshot = await page.screenshot(full_page=False)
     return post_screenshot, None, dom_date, dom_view_count, dom_caption
