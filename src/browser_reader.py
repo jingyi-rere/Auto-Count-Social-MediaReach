@@ -166,8 +166,7 @@ async def _get_x_data(page, post_url: str):
             """
             () => {
                 const body = document.body.innerText;
-                // Post page: "1,011\\n Views" or "1,011\\n Impressions"
-                let m = body.match(/([\d,]+)\s*\n\s*(?:Views?|Impressions?)/i);
+                let m = body.match(/([\d,]+)\\s*\\n\\s*(?:Views?|Impressions?)/i);
                 if (m) return m[1].replace(/,/g, '');
                 return null;
             }
