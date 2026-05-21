@@ -182,49 +182,46 @@ Content type hardcoding:
 ════════════════════════════════════════════════════
 7. MANUAL / REAL-DATA DEMO
 ════════════════════════════════════════════════════
-Live watcher test run — 18 May 2026
+Live watcher test run — 21 May 2026 (demo day)
 
 System: watcher.py polling Lark Bitable every 3 minutes.
 PIC filter active: only rows where PIC = "TAN JING YI" are processed.
-Platforms tested: Instagram, YouTube (Short), RedNote
+Platforms tested: Instagram (5), YouTube Shorts (4), X/Twitter (5), TikTok (1)
+Total: 15 URLs — 15 OK, 0 errors (single cycle, ~3 min 20 sec)
 
-Extraction method:
-  - YouTube/TikTok: yt-dlp (exact metadata, no browser, <10 sec)
-  - Instagram/RedNote: Firefox (Playwright) + Claude Haiku Vision
+Results:
 
-Instagram flow (two-screenshot approach):
-  1. Navigate to reel URL → capture page.url AND screenshot BEFORE pressing Escape
-     (Escape can close the reel viewer and navigate back to profile grid)
-  2. Navigate to profile reels grid → capture screenshot for view count
-  3. Send both screenshots to Claude Haiku → returns {posted_date, caption, view_count}
+  Instagram (5 URLs — Firefox + DOM + Claude Haiku Vision):
+    reel/DYUTPJ1PinG  → Date: 2026-05-14  Views: 57,900   Caption: 好想要有这个能力啊～～ ✓
+    reel/DYUiIdOTYnM  → Date: 2026-05-14  Views: 18,700   Caption: 听到同事要辞职了... ✓
+    reel/DYZtQ7VvOIr  → Date: 2026-05-16  Views:  6,372   Caption: 成年人很多时候都是... ✓
+    reel/DYesnSOPheX  → Date: 2026-05-18  Views:  5,377   Caption: 我承认我有点羡慕了 ✓
+    reel/DYhr-unPA6c  → Date: 2026-05-19  Views:  8,722   Caption: 办公室新英雄八爪鱼侠 ✓
 
-Results from live run (3 URLs processed):
-  Instagram  https://www.instagram.com/reel/DYZtQ7VvOIr/
-    → Date:    2026-04-29
-    → Caption: (extracted, hashtags stripped)
-    → Views:   (extracted from profile grid screenshot)
-    → Status:  Written to Lark columns A, D, E, G ✓
+  YouTube Shorts (4 URLs — yt-dlp, no browser):
+    shorts/5d1923gL19c → Date: 2026-05-14  Views:   799   Caption: 好想要有这个能力啊～～ ✓
+    shorts/gDZy70eq4Fs → Date: 2026-05-14  Views:   818   Caption: 听到同事要辞职了... ✓
+    shorts/vTQXH__SaME → Date: 2026-05-16  Views: 1,077   Caption: 成年人很多时候都是... ✓
+    shorts/psUVCRinkXU → Date: 2026-05-19  Views:   374   Caption: 办公室新英雄八爪鱼侠 ✓
 
-  YouTube Short  (URL processed via yt-dlp)
-    → Date:    extracted from platform metadata
-    → Caption: video title
-    → Views:   exact count from yt-dlp
-    → Status:  Written to Lark columns A, D, E, G ✓
+  X / Twitter (5 URLs — Firefox + DOM):
+    status/2055883039... → Date: 2026-05-17  Views:    107  Caption: The best interview answers... ✓
+    status/2056217919... → Date: 2026-05-18  Views: 41,600  Caption: Being kind is okay... ✓
+    status/2056230799... → Date: 2026-05-18  Views:    165  Caption: One small thing is all it takes... ✓
+    status/2056743795... → Date: 2026-05-19  Views:  1,384  Caption: Too real Does your wallet... ✓
+    status/2056759282... → Date: 2026-05-19  Views:     48  Caption: Why do weekends always pass... ✓
 
-  RedNote  (URL processed via Firefox + Vision)
-    → Date:    extracted from video page
-    → Caption: extracted and hashtags stripped
-    → Views:   extracted from view count overlay
-    → Status:  Written to Lark columns A, D, E, G ✓
+  TikTok (1 URL — Firefox + DOM + embedded script JSON):
+    video/7621901005... → Date: 2026-03-27  Views:     95  Caption: 也没错...但想到每次要重新开始 ✓
 
-Watcher polling loop end-to-end test:
-  - Started: python watcher.py
-  - First cycle detected new rows within 3 minutes ✓
-  - PIC filter confirmed: rows for other team members skipped ✓
-  - Lark write confirmed: Bitable updated with correct values ✓
-  - Watcher continued polling for next cycle without restart ✓
+Watcher behaviour confirmed:
+  - Cycle detected all 15 new rows in first poll ✓
+  - PIC filter: only "TAN JING YI" rows processed ✓
+  - All values written to Lark columns A, D, E, G ✓
+  - Watcher stopped automatically after cycle found no remaining empty rows ✓
+  - Zero errors across all 15 rows ✓
 
-All data verified by checking the Lark Bitable sheet after each write.
+All data verified by checking Lark Bitable after each write.
 
 ════════════════════════════════════════════════════
 SUMMARY
