@@ -222,11 +222,13 @@ doc.add_paragraph()
 # ── NEW: ARCHITECTURE ────────────────────────────────────────────────────────
 add_heading(doc, '1.0 Architecture & Approach', 1)
 add_body(doc, (
-    'The system uses a two-track extraction pipeline controlled by a background watcher daemon. '
-    'Track 1 (YouTube, TikTok): each URL is passed to yt-dlp, a battle-tested open-source tool '
+    'The system uses a three-track extraction pipeline controlled by a background watcher daemon. '
+    'Track 1 (YouTube): each URL is passed to yt-dlp, a battle-tested open-source tool '
     'that retrieves exact metadata (title, upload date, view count) directly from platform '
     'infrastructure without launching a browser — this takes under 10 seconds per video. '
-    'Track 2 (Instagram, RedNote): a persistent Firefox browser context (Playwright) loads the '
+    'Track 2 (TikTok, X/Twitter): Firefox navigates to the post page; caption, date, and view count '
+    'are read directly from DOM elements and embedded JSON — no Vision needed. '
+    'Track 3 (Instagram, RedNote): a persistent Firefox browser context (Playwright) loads the '
     'real page using the saved login session, dismisses popups, and takes a screenshot; '
     'for Instagram specifically, two screenshots are taken — the individual reel page for caption '
     'and date, and the profile reels grid for view count (which is only visible there on desktop). '
