@@ -30,7 +30,8 @@ is possible. With Instagram taking 2–4 min per URL, a 5-minute sleep meant use
 up to 9 minutes between paste and result. 3 minutes keeps that gap under 7 minutes.
 
 Each URL is routed to the best extraction method:
-- **yt-dlp** (YouTube, TikTok): fast, exact numbers, no browser needed
+- **yt-dlp** (YouTube): fast, exact numbers, no browser needed
+- **Firefox + DOM** (TikTok, X/Twitter): reads data directly from page DOM and embedded JSON; no Vision needed
 - **Firefox + Claude Haiku Vision** (Instagram, RedNote): persistent login session + screenshot
 
 All extracted data is written to columns A, D, E, G in a single atomic Lark API call.
