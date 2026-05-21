@@ -1039,8 +1039,8 @@ and that `page.url` is read immediately after `goto()` returns.
 watcher.py (daemon, every 3 min)
     └── lark_reader.py      → fetch rows where F has URL, A or G empty, PIC = TAN JING YI
     └── processor.py        → route URL to correct extractor
-         ├── metadata_reader.py  → yt-dlp (YouTube, TikTok)
-         └── browser_reader.py   → Firefox + Vision (Instagram, RedNote)
+         ├── metadata_reader.py  → yt-dlp (YouTube only)
+         └── browser_reader.py   → Firefox (TikTok/X: DOM; Instagram/RedNote: DOM+Vision)
               └── vision_extract.py  → Claude Haiku API (screenshots → JSON)
     └── lark_writer.py      → write A, D, E, G (hard allowlist enforced)
     └── reporter.py         → log summary to console
