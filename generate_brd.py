@@ -739,8 +739,8 @@ md = f"""# Business Requirements Document
 ## 1. Executive Summary
 
 A video content creator at ricebowlmy spends ~40 minutes every week manually collecting
-performance data (posted date, caption, view count) from 4 platforms (Instagram, YouTube,
-TikTok, RedNote) and typing it into Lark Bitable. This system eliminates that 40 minutes.
+performance data (posted date, caption, view count) from 5 platforms (Instagram, YouTube,
+TikTok, X/Twitter, RedNote) and typing it into Lark Bitable. This system eliminates that 40 minutes.
 
 The user pastes video URLs into Lark Column F. A background watcher detects new URLs within
 3 minutes and auto-fills: posted date (Column A), caption without hashtags (Column D),
