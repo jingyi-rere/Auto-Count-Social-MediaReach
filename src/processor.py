@@ -20,7 +20,14 @@ log = get_logger("processor")
 YTDLP_PLATFORMS = ("youtube.com", "youtu.be")
 
 # Platforms handled by Firefox + Claude Vision
-VISION_PLATFORMS = ("instagram.com", "xiaohongshu.com", "xhslink.com", "tiktok.com")
+VISION_PLATFORMS = (
+    "instagram.com",
+    "xiaohongshu.com",
+    "xhslink.com",
+    "tiktok.com",
+    "x.com",
+    "twitter.com",
+)
 
 # Platforms that reliably return the post date (used for cross-platform date fill)
 DATED_PLATFORMS = ("youtube.com", "youtu.be")
