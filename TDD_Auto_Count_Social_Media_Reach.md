@@ -79,7 +79,9 @@ A hard allowlist in `lark_writer.py` ensures no other columns can ever be writte
 
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| YouTube/TikTok extraction | yt-dlp | Exact numbers, no browser, <10 sec — no Vision needed |
+| YouTube extraction | yt-dlp | Exact numbers, no browser, <10 sec — no Vision needed |
+| TikTok extraction | Firefox + DOM | yt-dlp blocked by TikTok bot detection; DOM + embedded `playCount` JSON is reliable |
+| X (Twitter) extraction | Firefox + DOM | Caption from `tweetText`; rounded view count from post page without login |
 | Instagram/RedNote extraction | Firefox + Claude Haiku Vision | No public API; scraping blocked; UI changes break selectors |
 | Instagram view count location | Profile reels grid (not reel page) | View count only visible on desktop grid, not on reel page |
 | Screenshot timing (Instagram) | Before Escape key | Escape can close viewer and change page.url to profile grid — URL/screenshot must match |
