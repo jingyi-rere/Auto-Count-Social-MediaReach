@@ -114,19 +114,35 @@ def _js_find_thumbnail(shortcode: str) -> str:
 
 async def _get_tiktok_data(page, post_url: str):
     """
-    Extract TikTok post data via DOM.
+    Extract TikTok post data via DOM + profile grid (for view count).
     Returns (post_screenshot, None, dom_date, dom_view_count, dom_caption).
+
+    Flow:
+      1. Navigate to post URL → dismiss popup → caption + date
+      2. Navigate to author profile → find this video's thumbnail → read view count
+         (view count is in the grid even when "Just watched" overlays it visually,
+         because TikTok keeps the numeric text node in DOM)
     """
     log.info("TikTok: loading %s", post_url[:80])
     await page.goto(post_url, wait_until="domcontentloaded", timeout=45_000)
     await page.wait_for_timeout(5_000)
+
+    # Dismiss login/signup popup
+    await page.keyboard.press("Escape")
+    await page.wait_for_timeout(800)
+    try:
+        close_btn = await page.query_selector('[data-e2e="modal-close-inner-button"]')
+        if close_btn:
+            await close_btn.click()
+            await page.wait_for_timeout(500)
+    except Exception:
+        pass
 
     dom_caption = None
     try:
         raw_cap = await page.evaluate(
             """
             () => {
-                // TikTok video description element
                 const el = document.querySelector('[data-e2e="browse-video-desc"]')
                     || document.querySelector('[class*="video-desc"]')
                     || document.querySelector('[data-e2e="video-desc"]');
@@ -147,7 +163,6 @@ async def _get_tiktok_data(page, post_url: str):
             () => {
                 const t = document.querySelector('time[datetime]');
                 if (t) return t.getAttribute('datetime');
-                // TikTok shows "· 3-27" (month-day) — capture it
                 const body = document.body.innerText;
                 let m = body.match(/\\b(20\\d{2}-\\d{2}-\\d{2})\\b/);
                 if (m) return m[1];
@@ -158,24 +173,79 @@ async def _get_tiktok_data(page, post_url: str):
         """
         )
         if raw_dt:
-            # Full ISO date
             dom_date = _parse_ig_date(raw_dt)
             if not dom_date:
-                # "M-D" format — prepend current year
-                import re as _re2
-
-                md = _re2.match(r"^(\d{1,2})-(\d{1,2})$", raw_dt)
+                md = _re.match(r"^(\d{1,2})-(\d{1,2})$", raw_dt)
                 if md:
                     dom_date = f"{date.today().year}-{int(md.group(1)):02d}-{int(md.group(2)):02d}"
             log.info("TikTok: date = %s (raw: %s)", dom_date, raw_dt)
     except Exception as exc:
         log.debug("TikTok: date extraction failed: %s", exc)
 
-    # TikTok hides view counts from non-logged-in users — leave as None
-    dom_view_count = None
-    log.debug("TikTok: view count not available without login")
-
     post_screenshot = await page.screenshot(full_page=False)
+
+    # ── Step 2: profile grid → view count ─────────────────────────────────────
+    dom_view_count = None
+    try:
+        username_m = _re.search(r"tiktok\.com/(@[^/?#]+)", post_url)
+        video_id_m = _re.search(r"/video/(\d+)", post_url)
+
+        if username_m and video_id_m:
+            profile_url = f"https://www.tiktok.com/{username_m.group(1)}"
+            video_id = video_id_m.group(1)
+
+            log.info("TikTok: navigating to profile %s for view count", profile_url)
+            await page.goto(profile_url, wait_until="domcontentloaded", timeout=45_000)
+            await page.wait_for_timeout(5_000)
+            await page.keyboard.press("Escape")
+            await page.wait_for_timeout(800)
+
+            # Scroll until the thumbnail is found (max ~60 videos)
+            raw_vc = None
+            for _ in range(12):
+                raw_vc = await page.evaluate(
+                    """
+                    (videoId) => {
+                        const link = document.querySelector(
+                            'a[href*="/video/' + videoId + '"]'
+                        );
+                        if (!link) return null;
+                        // Walk text nodes — view count is numeric; "Just watched" is not
+                        const walker = document.createTreeWalker(
+                            link, NodeFilter.SHOW_TEXT, null, false
+                        );
+                        let node;
+                        while ((node = walker.nextNode())) {
+                            const t = node.textContent.trim();
+                            if (/^[\\d,.]+[KkMm]?$/.test(t)) return t;
+                        }
+                        return null;
+                    }
+                """,
+                    video_id,
+                )
+                if raw_vc:
+                    break
+                await page.evaluate("window.scrollBy(0, 700)")
+                await page.wait_for_timeout(800)
+
+            if raw_vc:
+                dom_view_count = _parse_count_text(raw_vc)
+                log.info(
+                    "TikTok: profile grid view count = %s (raw: %s)",
+                    dom_view_count,
+                    raw_vc,
+                )
+            else:
+                log.debug(
+                    "TikTok: video %s not found in profile grid after scrolling",
+                    video_id,
+                )
+        else:
+            log.debug("TikTok: could not extract username/video_id from %s", post_url)
+    except Exception as exc:
+        log.debug("TikTok: profile grid view count failed: %s", exc)
+
     return post_screenshot, None, dom_date, dom_view_count, dom_caption
 
 
