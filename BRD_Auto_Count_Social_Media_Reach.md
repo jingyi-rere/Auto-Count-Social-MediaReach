@@ -1,7 +1,7 @@
 # Business Requirements Document
 ## Auto Count Social Media Reach — AI-Assisted Video Metrics Automation System
 
-**Version:** 5.4 | **Date:** 18 May 2026 | **Status:** Final | **Prepared By:** jingyi-rere
+**Version:** 5.5 | **Date:** 21 May 2026 | **Status:** Final | **Prepared By:** jingyi-rere
 
 ---
 
