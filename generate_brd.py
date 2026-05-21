@@ -943,7 +943,7 @@ of platform, language, or UI version.
 
 ---
 
-*End of Document — Version 5.4*
+*End of Document — Version 5.5*
 """
 with open(md_path, 'w', encoding='utf-8') as f:
     f.write(md)
