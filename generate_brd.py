@@ -857,8 +857,9 @@ of platform, language, or UI version.
 
 1. User pastes video URL into Column F of Lark Bitable
 2. watcher.py polls Lark every 3 minutes for rows where F has URL but A or G is empty
-3. For YouTube/TikTok: yt-dlp fetches title, date, view count (no browser needed, <10 sec)
-4. For Instagram/RedNote: Firefox loads the page using saved login session
+3. For YouTube: yt-dlp fetches title, date, view count (no browser needed, <10 sec)
+4. For TikTok/X (Twitter): Firefox navigates to the post page; caption, date, view count read from DOM and embedded JSON
+5. For Instagram/RedNote: Firefox loads the page using saved login session
 5. Instagram: two-screenshot approach — reel page screenshot (before Escape) for caption+date; profile grid for view count
 6. RedNote: single screenshot of video page for all three fields
 7. Screenshot sent to Claude Haiku Vision → returns JSON {{posted_date, caption, view_count}}
