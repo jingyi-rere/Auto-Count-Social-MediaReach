@@ -148,9 +148,13 @@ Watcher polling efficiency:
   test_performance.py::TestWatcherCycle::test_watcher_skips_already_filled_rows PASSED
   → get_new_rows() returns only unfilled rows; skips rows with both A and G filled
 
-Batch estimate (architecture note from live testing):
-  5 Instagram URLs ≈ 15–20 minutes total (Vision takes 2–4 min per URL)
-  Watcher interval of 3 minutes chosen after observing this in live testing.
+Measured latency from live run (21 May 2026 — 15 URLs, 5 platforms):
+  YouTube Shorts (yt-dlp)  — 2–3 seconds per URL (exact)
+  X (Twitter) (Firefox+DOM) — 8–10 seconds per URL
+  TikTok (Firefox+DOM)      — 12–15 seconds per URL (profile grid navigation)
+  Instagram (Firefox+Vision) — 18–22 seconds per URL
+  Full 15-URL batch          — ~3 minutes 20 seconds total (single watcher cycle)
+  Watcher is single-threaded: cycles run sequentially, sleep starts AFTER cycle completes — no overlap possible.
 
 ════════════════════════════════════════════════════
 6. UI/UX
