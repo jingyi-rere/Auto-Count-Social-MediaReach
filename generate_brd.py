@@ -508,7 +508,7 @@ make_table(doc,
     ['ID', 'Priority', 'Requirement'],
     [
         ('FR-01', M, 'System reads Lark Bitable to find rows where Column F has a URL and columns A/D/E/G are empty.'),
-        ('FR-02', M, 'System routes YouTube/TikTok URLs to yt-dlp for fast, exact metadata extraction (no browser).'),
+        ('FR-02', M, 'System routes YouTube URLs to yt-dlp for fast, exact metadata extraction (no browser). Routes TikTok and X (Twitter) URLs to Firefox + DOM extraction.'),
         ('FR-03', M, 'System routes Instagram/RedNote URLs to Firefox + Claude Vision for screenshot-based extraction.'),
         ('FR-04', M, 'For Instagram: system takes two screenshots — reel page screenshot (view count, captured immediately before any navigation) and split-view screenshot (caption + date, from clicking the profile grid thumbnail).'),
         ('FR-05', M, 'System sends screenshots to Claude Haiku Vision (claude-haiku-4-5) to extract posted date, caption, view count.'),
