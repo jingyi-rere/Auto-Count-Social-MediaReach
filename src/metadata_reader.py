@@ -6,9 +6,10 @@ so login sessions are inherited automatically.
 
 Returns: { posted_date, caption, view_count } per URL.
 """
+
 import yt_dlp
 from src.logger import get_logger
-from src.utils  import clean_caption as _clean_caption  # shared, single source of truth
+from src.utils import clean_caption as _clean_caption  # shared, single source of truth
 
 log = get_logger("metadata_reader")
 
@@ -16,7 +17,7 @@ log = get_logger("metadata_reader")
 YDL_OPTS = {
     "quiet": True,
     "no_warnings": True,
-    "skip_download": True,          # metadata only, never downloads video
+    "skip_download": True,  # metadata only, never downloads video
     "cookiesfrombrowser": ("chrome",),  # uses your existing Chrome logins
     "extractor_args": {
         "instagram": ["include_dash_manifests=0"],
@@ -37,6 +38,9 @@ def get_metadata(url: str) -> dict:
     Returns dict with posted_date, caption, view_count.
     Falls back gracefully if a field is unavailable.
     """
+    # TikTok tracking params (is_from_webapp, etc.) break yt-dlp extraction — strip them
+    if "tiktok.com" in url:
+        url = url.split("?")[0]
     log.info("yt-dlp fetching metadata for: %s", url[:80])
     with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -49,9 +53,13 @@ def get_metadata(url: str) -> dict:
 
     result = {
         "posted_date": _format_date(info.get("upload_date")),
-        "caption":     caption,
-        "view_count":  info.get("view_count"),
+        "caption": caption,
+        "view_count": info.get("view_count"),
     }
-    log.info("yt-dlp result — date=%s views=%s caption=%r",
-             result["posted_date"], result["view_count"], result["caption"][:50])
+    log.info(
+        "yt-dlp result — date=%s views=%s caption=%r",
+        result["posted_date"],
+        result["view_count"],
+        result["caption"][:50],
+    )
     return result
