@@ -921,7 +921,7 @@ make_table(doc,
 doc.add_paragraph()
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-run = p.add_run('— End of Document — Version 3.3 —')
+run = p.add_run('— End of Document — Version 3.5 —')
 run.italic = True
 run.font.size = Pt(9)
 run.font.color.rgb = RGBColor(*GREY)
