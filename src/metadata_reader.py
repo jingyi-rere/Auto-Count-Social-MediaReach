@@ -38,11 +38,14 @@ def get_metadata(url: str) -> dict:
     Returns dict with posted_date, caption, view_count.
     Falls back gracefully if a field is unavailable.
     """
-    # TikTok tracking params (is_from_webapp, etc.) break yt-dlp extraction — strip them
+    # TikTok: strip tracking params (break extraction) and skip Chrome cookies (cause auth errors)
     if "tiktok.com" in url:
         url = url.split("?")[0]
+        opts = {k: v for k, v in YDL_OPTS.items() if k != "cookiesfrombrowser"}
+    else:
+        opts = YDL_OPTS
     log.info("yt-dlp fetching metadata for: %s", url[:80])
-    with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
+    with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
     # Caption = title + description (title first, description as fallback)
