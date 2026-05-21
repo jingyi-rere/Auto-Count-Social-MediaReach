@@ -14,6 +14,7 @@
 | 5.2 | 13 May 2026 | jingyi-rere | Phase 1/2 scope clarified, baseline 40 min/week, accuracy thresholds aligned |
 | 5.3 | 18 May 2026 | jingyi-rere | Instagram view count from reel screenshot before Escape; watcher 3 min |
 | 5.4 | 18 May 2026 | jingyi-rere | Defensive baseline note removed (stated upfront); Phase 2 moved to Appendix A |
+| 5.5 | 21 May 2026 | jingyi-rere | TikTok → Firefox+DOM (not yt-dlp); X (Twitter) added; live 5-platform test confirmed |
 
 ---
 
