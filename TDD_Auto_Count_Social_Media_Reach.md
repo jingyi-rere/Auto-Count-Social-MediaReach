@@ -24,9 +24,10 @@
 The user pastes video URLs into Column F of Lark Bitable, then runs `python watcher.py` once.
 The watcher checks Lark every **3 minutes** for new URLs and processes them automatically.
 
-**Why 3 minutes:** Reduced from 5 minutes after observing that Instagram + Vision processing
-takes 2–4 minutes per URL. A 5-minute interval meant the next check fired before the current
-batch finished logging.
+**Why 3 minutes:** Reduced from 5 minutes for faster user feedback. The watcher runs
+sequentially — each cycle completes fully before sleeping, so no overlap between cycles
+is possible. With Instagram taking 2–4 min per URL, a 5-minute sleep meant users waited
+up to 9 minutes between paste and result. 3 minutes keeps that gap under 7 minutes.
 
 Each URL is routed to the best extraction method:
 - **yt-dlp** (YouTube, TikTok): fast, exact numbers, no browser needed
