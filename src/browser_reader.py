@@ -474,6 +474,9 @@ async def _take_screenshot(url: str):
             str(FIREFOX_PROFILE_DIR),
             headless=False,
             viewport={"width": 1280, "height": 900},
+            args=[
+                "--window-position=9999,0"
+            ],  # open off-screen so it doesn't interrupt
         )
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
         try:
