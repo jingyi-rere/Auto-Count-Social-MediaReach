@@ -1,5 +1,5 @@
 """
-login_once.py — ONE TIME ONLY setup: log into Instagram and RedNote on Firefox.
+login_once.py — ONE TIME ONLY setup: log into Instagram, RedNote, and X on Firefox.
 
 Run this once:
     python login_once.py
