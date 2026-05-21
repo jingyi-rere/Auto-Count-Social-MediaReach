@@ -177,7 +177,8 @@ make_table(doc,
         ('5.1', '13 May 2026', 'jingyi-rere', 'Added boss-required sections: specific pain with time measurements, why AI not just automation, quantified value (33 hrs/year), AC-01 to AC-10 acceptance criteria'),
         ('5.2', '13 May 2026', 'jingyi-rere', 'Feedback fixes: clarified Phase 1 vs Phase 2 platform scope, reconciled baseline metric (40 min/week), aligned AC-03 and NFR-02 accuracy thresholds'),
         ('5.3', '18 May 2026', 'jingyi-rere', 'Instagram view count fix: now extracted from reel page screenshot (taken before Escape key) — guarantees correct reel. Watcher interval reduced to 3 minutes. Grid navigation retained for caption/date only.'),
-        ('5.4', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'Feedback fixes: removed defensive baseline note — stated upfront as 4 min/video × 10 videos. Phase 2 platforms moved to Appendix A (Future Scope) to keep main doc focused on current build.'),
+        ('5.4', '18 May 2026', 'jingyi-rere', 'Feedback fixes: removed defensive baseline note — stated upfront as 4 min/video × 10 videos. Phase 2 platforms moved to Appendix A (Future Scope) to keep main doc focused on current build.'),
+        ('5.5', datetime.date.today().strftime('%d %B %Y'), 'jingyi-rere', 'TikTok → Firefox+DOM (not yt-dlp); X (Twitter) added as 5th platform; live 5-platform test confirmed.'),
     ],
     [0.7, 1.5, 1.5, 3.8]
 )
