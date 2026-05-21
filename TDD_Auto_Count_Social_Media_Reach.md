@@ -216,7 +216,7 @@ async def extract_instagram(url):
 
 ### 4.5 processor.py
 
-- Routes URL: `youtube.com` / `youtu.be` / `tiktok.com` → yt-dlp; others → browser
+- Routes URL: `youtube.com` / `youtu.be` → yt-dlp; `tiktok.com` / `x.com` / `twitter.com` → Firefox+DOM; `instagram.com` / `xiaohongshu.com` / `xhslink.com` → Firefox+Vision
 - Strips hashtags: `re.sub(r'#[\w\u00C0-\u024F\u4e00-\u9fff]+', '', caption)`
 - Merges results and calls `lark_writer.write_row()`
 
