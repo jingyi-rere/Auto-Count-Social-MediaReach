@@ -43,12 +43,18 @@ A hard allowlist in `lark_writer.py` ensures no other columns can ever be writte
 
 **Two-track extraction pipeline:**
 
-**Track 1 — YouTube / TikTok (yt-dlp)**
+**Track 1 — YouTube (yt-dlp)**
 - Passes URL to yt-dlp; retrieves title, upload date, view count from platform CDN metadata
 - No browser launched; under 10 seconds per video
 - Exact numbers — no Vision needed
 
-**Track 2 — Instagram / RedNote (Firefox + Claude Vision)**
+**Track 2 — TikTok / X (Firefox + DOM)**
+- Firefox navigates to the post URL; dismisses login popup
+- **TikTok:** caption from `[data-e2e="browse-video-desc"]`; date from `<time>` or body text; view count from `"playCount"` embedded in page `<script>` JSON
+- **X (Twitter):** caption from `[data-testid="tweetText"]`; date from `<time datetime>`; view count from post page rounded display or analytics modal (if logged in as post owner)
+- No Vision needed — all data read from DOM
+
+**Track 3 — Instagram / RedNote (Firefox + Claude Vision)**
 - Persistent Firefox context (Playwright) with saved login session
 - Dismisses popups, loads real page
 - **Instagram two-screenshot approach:**
