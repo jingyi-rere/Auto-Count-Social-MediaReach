@@ -202,23 +202,58 @@ async def _get_tiktok_data(page, post_url: str):
 
             # Scroll until the thumbnail is found (max ~60 videos)
             raw_vc = None
-            for _ in range(12):
+            for i in range(12):
                 raw_vc = await page.evaluate(
                     """
                     (videoId) => {
+                        // Strategy 1: <a href*="/video/ID"> — walk its text nodes
                         const link = document.querySelector(
                             'a[href*="/video/' + videoId + '"]'
                         );
-                        if (!link) return null;
-                        // Walk text nodes — view count is numeric; "Just watched" is not
-                        const walker = document.createTreeWalker(
-                            link, NodeFilter.SHOW_TEXT, null, false
-                        );
-                        let node;
-                        while ((node = walker.nextNode())) {
-                            const t = node.textContent.trim();
-                            if (/^[\\d,.]+[KkMm]?$/.test(t)) return t;
+                        if (link) {
+                            const root = link.closest('[data-e2e]') || link;
+                            const walker = document.createTreeWalker(
+                                root, NodeFilter.SHOW_TEXT, null, false
+                            );
+                            let node;
+                            while ((node = walker.nextNode())) {
+                                const t = node.textContent.trim();
+                                if (/^[\\d,.]+[KkMm]?$/.test(t)) return t;
+                            }
                         }
+
+                        // Strategy 2: any <a> whose href contains the video ID
+                        for (const a of document.querySelectorAll('a[href]')) {
+                            if (!a.href.includes(videoId)) continue;
+                            const walker = document.createTreeWalker(
+                                a, NodeFilter.SHOW_TEXT, null, false
+                            );
+                            let node;
+                            while ((node = walker.nextNode())) {
+                                const t = node.textContent.trim();
+                                if (/^[\\d,.]+[KkMm]?$/.test(t)) return t;
+                            }
+                        }
+
+                        // Strategy 3: "Just watched" container — grab any numeric sibling
+                        for (const el of document.querySelectorAll('*')) {
+                            if (el.children.length > 0) continue;
+                            const txt = (el.textContent || '').trim();
+                            if (!txt.toLowerCase().includes('just watched')) continue;
+                            const item = el.closest('[data-e2e="user-post-item"]')
+                                      || el.closest('div[class]')
+                                      || el.parentElement;
+                            if (!item) continue;
+                            const walker = document.createTreeWalker(
+                                item, NodeFilter.SHOW_TEXT, null, false
+                            );
+                            let node;
+                            while ((node = walker.nextNode())) {
+                                const t = node.textContent.trim();
+                                if (/^[\\d,.]+[KkMm]?$/.test(t)) return t;
+                            }
+                        }
+
                         return null;
                     }
                 """,
@@ -226,6 +261,27 @@ async def _get_tiktok_data(page, post_url: str):
                 )
                 if raw_vc:
                     break
+
+                # On first pass, log DOM state for debugging
+                if i == 0:
+                    dbg = await page.evaluate(
+                        """
+                        (videoId) => ({
+                            postItems: document.querySelectorAll(
+                                '[data-e2e="user-post-item"]').length,
+                            videoLinks: Array.from(document.querySelectorAll(
+                                'a[href*="/video/"]')).length,
+                            exactLink: !!document.querySelector(
+                                'a[href*="/video/' + videoId + '"]'),
+                            sampleHrefs: Array.from(document.querySelectorAll(
+                                'a[href*="/video/"]')).slice(0, 3).map(
+                                a => a.href.slice(-40)),
+                        })
+                    """,
+                        video_id,
+                    )
+                    log.info("TikTok profile DOM: %s", dbg)
+
                 await page.evaluate("window.scrollBy(0, 700)")
                 await page.wait_for_timeout(800)
 
@@ -237,7 +293,7 @@ async def _get_tiktok_data(page, post_url: str):
                     raw_vc,
                 )
             else:
-                log.debug(
+                log.info(
                     "TikTok: video %s not found in profile grid after scrolling",
                     video_id,
                 )
