@@ -1092,7 +1092,7 @@ processor.process(record_id, url)
 | Component | Technology | Version |
 |-----------|-----------|---------|
 | Browser automation | Playwright (Firefox) | 1.44.0 |
-| YouTube/TikTok extraction | yt-dlp | latest |
+| YouTube extraction | yt-dlp | latest |
 | Vision AI | Claude Haiku (claude-haiku-4-5) | via Anthropic API |
 | Lark integration | lark-oapi | 1.3.5 |
 | Environment config | python-dotenv | 1.0.1 |
