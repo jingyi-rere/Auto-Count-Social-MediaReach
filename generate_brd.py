@@ -892,7 +892,7 @@ of platform, language, or UI version.
 | ID | Requirement | Priority |
 |----|-------------|----------|
 | FR-01 | Detect new URLs in Column F within one watcher cycle (≤3 min) | Must Have |
-| FR-02 | Extract posted date, caption, view count for all 4 platforms | Must Have |
+| FR-02 | Extract posted date, caption, view count for all 5 platforms | Must Have |
 | FR-03 | Strip all hashtags from caption before writing | Must Have |
 | FR-04 | Write to columns A, D, E, G only | Must Have |
 | FR-05 | Never overwrite existing data in A, D, E, G | Must Have |
