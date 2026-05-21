@@ -159,14 +159,23 @@ async def _get_x_data(page, post_url: str):
     except Exception as exc:
         log.debug("X: date extraction failed: %s", exc)
 
-    # Extract view count from post page — X shows "1,011\n Views" in the post body
+    post_screenshot = await page.screenshot(full_page=False)
+
+    # Navigate to /analytics for exact Impressions count (requires login as post owner)
     dom_view_count = None
+    analytics_url = clean_url + "/analytics"
     try:
+        log.info("X: loading analytics page %s", analytics_url)
+        await page.goto(analytics_url, wait_until="domcontentloaded", timeout=30_000)
+        await page.wait_for_timeout(3_000)
         raw_vc = await page.evaluate(
             """
             () => {
                 const body = document.body.innerText;
-                let m = body.match(/([\d,.]+[KkMm]?)\\s*\\n\\s*(?:Views?|Impressions?)/i);
+                // Analytics page: "Impressions\\n41,508" or "41,508\\nImpressions"
+                let m = body.match(/Impressions\\s*\\n\\s*([\d,]+)/i);
+                if (m) return m[1].replace(/,/g, '');
+                m = body.match(/([\d,]+)\\s*\\n\\s*Impressions/i);
                 if (m) return m[1].replace(/,/g, '');
                 return null;
             }
@@ -174,13 +183,34 @@ async def _get_x_data(page, post_url: str):
         )
         dom_view_count = _parse_count_text(raw_vc)
         if dom_view_count is not None:
-            log.info("X: view count = %d (raw: %s)", dom_view_count, raw_vc)
+            log.info("X: impressions = %d (raw: %s)", dom_view_count, raw_vc)
         else:
-            log.debug("X: view count not found on post page")
+            log.debug("X: impressions not found — falling back to post page view count")
     except Exception as exc:
-        log.debug("X: view count extraction failed: %s", exc)
+        log.debug("X: analytics extraction failed: %s", exc)
 
-    post_screenshot = await page.screenshot(full_page=False)
+    # Fallback: read rounded view count from post page if analytics failed
+    if dom_view_count is None:
+        try:
+            await page.goto(post_url, wait_until="domcontentloaded", timeout=30_000)
+            await page.wait_for_timeout(3_000)
+            raw_vc = await page.evaluate(
+                """
+                () => {
+                    const body = document.body.innerText;
+                    let m = body.match(/([\d,.]+[KkMm]?)\\s*\\n\\s*(?:Views?|Impressions?)/i);
+                    if (m) return m[1].replace(/,/g, '');
+                    return null;
+                }
+            """
+            )
+            dom_view_count = _parse_count_text(raw_vc)
+            if dom_view_count is not None:
+                log.info(
+                    "X: post-page view count = %d (raw: %s)", dom_view_count, raw_vc
+                )
+        except Exception as exc:
+            log.debug("X: post-page view count fallback failed: %s", exc)
 
     return post_screenshot, None, dom_date, dom_view_count, dom_caption
 
