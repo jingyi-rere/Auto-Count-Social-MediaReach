@@ -191,6 +191,19 @@ def process_all() -> list:
                         (dom_cap or "")[:40],
                         reel_data["caption"][:40],
                     )
+                elif dom_cap or dom_date or dom_vc:
+                    # X / platforms with DOM extraction but no dual screenshots
+                    data = {
+                        "posted_date": dom_date,
+                        "caption": _clean_caption(dom_cap) if dom_cap else None,
+                        "view_count": dom_vc,
+                    }
+                    log.debug(
+                        "X/DOM — dom_date=%s dom_vc=%s dom_cap=%r",
+                        dom_date,
+                        dom_vc,
+                        (dom_cap or "")[:40],
+                    )
                 else:
                     # RedNote / other vision platforms — single screenshot
                     data = extract_from_screenshot(main_ss)
