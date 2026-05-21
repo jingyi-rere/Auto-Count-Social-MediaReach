@@ -153,8 +153,9 @@ regardless of platform, language, or UI version.
 | Platform | Method | Notes |
 |----------|--------|-------|
 | YouTube | yt-dlp | Exact numbers, no browser, <10 sec |
-| TikTok | yt-dlp | Exact numbers, no browser, <10 sec |
-| Instagram | Firefox + Claude Vision | Two-screenshot: reel page (before Escape) + profile grid |
+| TikTok | Firefox + DOM | Caption/date from DOM elements; view count from embedded page JSON (`playCount`) |
+| Instagram | Firefox + DOM + Claude Vision | DOM for caption/date; two-screenshot for view count (reel page before Escape + profile grid) |
+| X (Twitter) | Firefox + DOM | Caption from `tweetText`; date from `<time>`; view count from post page or analytics |
 | RedNote | Firefox + Claude Vision | Single screenshot of video page |
 
 ### Appendix A: Future Scope (Not Built)
