@@ -15,6 +15,7 @@
 | 3.2 | 13 May 2026 | jingyi-rere | Pytest evidence reference, Vision latency note, Claude API cost estimate |
 | 3.3 | 18 May 2026 | jingyi-rere | Instagram: reel page screenshot before Escape; watcher 3 min; flow diagram corrected |
 | 3.4 | 18 May 2026 | jingyi-rere | 3-min interval reason added; 283 tests updated for Instagram arch; latency = 5 URLs ~15-20 min |
+| 3.5 | 21 May 2026 | jingyi-rere | TikTok → Firefox+DOM; X (Twitter) added; watcher threading clarified; Phase 4 rollback added |
 
 ---
 
