@@ -746,9 +746,10 @@ The user pastes video URLs into Lark Column F. A background watcher detects new 
 3 minutes and auto-fills: posted date (Column A), caption without hashtags (Column D),
 content type (Column E), and view count (Column G).
 
-Claude AI Vision is required — not optional — because Instagram, TikTok, and RedNote have
-no public API, block scrapers, and change UI regularly. Only Vision can read any screenshot
-regardless of platform, language, or UI version.
+Claude AI Vision is used for Instagram and RedNote — platforms with no public API that block
+scrapers and change UI regularly. TikTok and X (Twitter) use Firefox + DOM extraction.
+YouTube uses yt-dlp for fast, exact metadata. Only Vision can read any screenshot regardless
+of platform, language, or UI version.
 
 **Projected outcome:** 38 minutes saved per week ≈ 33 hours per year, near-zero errors.
 
