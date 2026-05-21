@@ -461,7 +461,7 @@ make_table(doc,
 # ── 8. SUPPORTED PLATFORMS ────────────────────────────────────────────────────
 add_heading(doc, '10. Supported Platforms (Current Scope)', 1)
 add_body(doc, (
-    'The following 4 platforms are fully built, tested, and active. '
+    'The following 5 platforms are fully built, tested, and active. '
     'They cover 100% of current posting activity.'
 ), italic=True, color=GREY)
 doc.add_paragraph()
