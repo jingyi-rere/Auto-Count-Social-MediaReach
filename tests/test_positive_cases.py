@@ -189,7 +189,7 @@ class TestPositiveRouting:
         assert _route("https://www.instagram.com/reels/abc123/") == "vision"
 
     def test_tiktok(self):
-        assert _route("https://www.tiktok.com/@user/video/123456") == "ytdlp"
+        assert _route("https://www.tiktok.com/@user/video/123456") == "vision"
 
     def test_xiaohongshu(self):
         assert _route("https://www.xiaohongshu.com/explore/abc") == "vision"
