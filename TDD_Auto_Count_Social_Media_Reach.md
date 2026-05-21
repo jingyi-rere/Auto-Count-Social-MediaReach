@@ -1,8 +1,8 @@
 # Technical Design Document
 ## Auto Count Social Media Reach — AI-Assisted Video Metrics Automation System
 
-**Version:** 3.4 | **Date:** 18 May 2026 | **Status:** Final | **Prepared By:** jingyi-rere
-**Based On:** BRD v5.4
+**Version:** 3.5 | **Date:** 21 May 2026 | **Status:** Final | **Prepared By:** jingyi-rere
+**Based On:** BRD v5.5
 
 ---
 
