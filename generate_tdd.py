@@ -1247,7 +1247,39 @@ pytest==8.2.0
 
 ---
 
-*End of Document — Version 3.4*
+---
+
+## 15. Live Validation (Phase 4) — Results and Rollback Plan
+
+### Completed: 21 May 2026
+
+A full 15-URL batch was run across all 5 platforms in a single watcher cycle:
+
+| Platform | URLs | Result | Sample view count |
+|----------|------|--------|------------------|
+| Instagram | 5 | ✓ 5/5 written | 57,900 / 18,700 / 6,372 / 5,377 / 8,722 |
+| YouTube Shorts | 4 | ✓ 4/4 written | 799 / 818 / 1,077 / 374 |
+| X (Twitter) | 5 | ✓ 5/5 written | 107 / 41,600 / 165 / 1,384 / 48 |
+| TikTok | 1 | ✓ 1/1 written | 95 |
+| **TOTAL** | **15** | **15 OK, 0 errors** | — |
+
+**Accuracy confirmed:** All values verified against Lark Bitable after each write. PIC filter active throughout.
+
+### Rollback Plan (if 95% accuracy target fails)
+
+| Failure type | Rollback action |
+|--------------|----------------|
+| View count off by >5% on Vision platforms | Update Vision prompt in `vision_extract.py`; re-run failed rows |
+| Caption includes hashtags | Verify regex covers new character ranges; add test case; re-run |
+| Date wrong or missing | Check platform date format; update `_parse_ig_date()` or fallback regex; re-run |
+| Platform blocks extraction | User falls back to manual entry for that platform only — all other platforms continue |
+| yt-dlp blocked (YouTube) | Temporary fallback: manual entry; long-term: add cookies via `login_once.py` |
+
+Manual entry is always available as fallback — the system augments the workflow, so a partial failure is never worse than the previous manual process.
+
+---
+
+*End of Document — Version 3.5*
 """
 with open(md_path, 'w', encoding='utf-8') as f:
     f.write(md)
