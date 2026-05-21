@@ -935,7 +935,7 @@ today = datetime.date.today().strftime('%d %B %Y')
 md = f"""# Technical Design Document
 ## Auto Count Social Media Reach — AI-Assisted Video Metrics Automation System
 
-**Version:** 3.4 | **Date:** {today} | **Status:** Final | **Prepared By:** jingyi-rere
+**Version:** 3.5 | **Date:** {today} | **Status:** Final | **Prepared By:** jingyi-rere
 **Based On:** BRD v5.4
 
 ---
