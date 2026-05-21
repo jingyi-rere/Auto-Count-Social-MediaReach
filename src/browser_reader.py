@@ -159,20 +159,15 @@ async def _get_x_data(page, post_url: str):
     except Exception as exc:
         log.debug("X: date extraction failed: %s", exc)
 
-    post_screenshot = await page.screenshot(full_page=False)
-
+    # Extract view count from post page — X shows "1,011\n Views" in the post body
     dom_view_count = None
     try:
-        log.info("X: loading analytics page %s", analytics_url)
-        await page.goto(analytics_url, wait_until="domcontentloaded", timeout=30_000)
-        await page.wait_for_timeout(3_000)
         raw_vc = await page.evaluate(
             """
             () => {
                 const body = document.body.innerText;
-                let m = body.match(/([\d,]+)\s*\n\s*Impressions/i);
-                if (m) return m[1].replace(/,/g, '');
-                m = body.match(/Impressions\D{0,10}([\d,]+)/i);
+                // Post page: "1,011\\n Views" or "1,011\\n Impressions"
+                let m = body.match(/([\d,]+)\s*\n\s*(?:Views?|Impressions?)/i);
                 if (m) return m[1].replace(/,/g, '');
                 return null;
             }
@@ -180,11 +175,13 @@ async def _get_x_data(page, post_url: str):
         )
         dom_view_count = _parse_count_text(raw_vc)
         if dom_view_count is not None:
-            log.info("X: impressions = %d (raw: %s)", dom_view_count, raw_vc)
+            log.info("X: view count = %d (raw: %s)", dom_view_count, raw_vc)
         else:
-            log.debug("X: impressions not found on analytics page")
+            log.debug("X: view count not found on post page")
     except Exception as exc:
-        log.debug("X: analytics extraction failed: %s", exc)
+        log.debug("X: view count extraction failed: %s", exc)
+
+    post_screenshot = await page.screenshot(full_page=False)
 
     return post_screenshot, None, dom_date, dom_view_count, dom_caption
 
