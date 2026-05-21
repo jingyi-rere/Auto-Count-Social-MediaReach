@@ -125,7 +125,7 @@ async def _get_x_data(page, post_url: str):
 
     log.info("X: loading post page %s", post_url[:80])
     await page.goto(post_url, wait_until="domcontentloaded", timeout=45_000)
-    await page.wait_for_timeout(3_000)
+    await page.wait_for_timeout(5_000)
 
     dom_caption = None
     try:
