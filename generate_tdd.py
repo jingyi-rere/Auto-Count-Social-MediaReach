@@ -1013,12 +1013,14 @@ A hard allowlist in `lark_writer.py` ensures no other columns can ever be writte
 
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| YouTube/TikTok extraction | yt-dlp | Exact numbers, no browser, <10 sec — no Vision needed |
+| YouTube extraction | yt-dlp | Exact numbers, no browser, <10 sec — no Vision needed |
+| TikTok extraction | Firefox + DOM | yt-dlp blocked by TikTok bot detection; DOM + embedded `playCount` JSON is reliable |
+| X (Twitter) extraction | Firefox + DOM | Caption from `tweetText`; rounded view count from post page without login |
 | Instagram/RedNote extraction | Firefox + Claude Haiku Vision | No public API; scraping blocked; UI changes break selectors |
 | Instagram view count location | Profile reels grid (not reel page) | View count only visible on desktop grid, not on reel page |
 | Screenshot timing (Instagram) | Before Escape key | Escape can close viewer and change page.url to profile grid — URL/screenshot must match |
 | Vision model | claude-haiku-4-5 | Sufficient accuracy for numbers/dates; faster and cheaper than Sonnet |
-| Watcher interval | 3 minutes | Instagram+Vision takes 2–4 min/URL; 5-min interval caused log overlap |
+| Watcher interval | 3 minutes | Watcher is single-threaded (cycles run sequentially, no overlap); 3 min balances responsiveness vs Instagram 2–4 min processing time |
 | Column allowlist | Hard exception in code | Prevents any future bug from writing to wrong column |
 | PIC filter | LARK_PIC_FILTER env var | Shared Lark table — only process rows where PIC = "TAN JING YI" |
 
