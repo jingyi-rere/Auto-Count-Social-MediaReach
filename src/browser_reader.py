@@ -698,6 +698,8 @@ async def _take_screenshot(url: str):
                 return post_ss, thumb_ss, dom_date, dom_vc, dom_cap
             elif "x.com" in url or "twitter.com" in url:
                 return await _get_x_data(page, url)
+            elif "tiktok.com" in url:
+                return await _get_tiktok_data(page, url)
             else:
                 ss = await _screenshot_url(page, url)
                 return ss, None, None, None, None
