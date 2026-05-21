@@ -124,18 +124,22 @@ lark_reader.get_new_rows() → [(record_id, url), ...]
          ↓
 processor.process(record_id, url)
          ↓
-     Is YouTube or TikTok?
-    /                    \
-  YES                    NO (Instagram/RedNote)
-   ↓                      ↓
-yt-dlp                 browser_reader.py
-(title, date,          Firefox opens URL
- view_count)           Takes screenshot(s)
-                       For Instagram:
-                         1. Reel page → screenshot BEFORE Escape
-                         2. Profile grid → screenshot for view count
-                       vision_extract.py → Claude Haiku
-                         (screenshot → JSON)
+          Is YouTube?
+         /          \
+       YES           NO
+        ↓             ↓
+     yt-dlp     Is TikTok or X?
+  (title, date,   /         \
+   view_count)  YES           NO (Instagram/RedNote)
+                 ↓             ↓
+          browser_reader    browser_reader.py
+          Firefox+DOM       Firefox opens URL
+          (caption, date,   Takes screenshot(s)
+           view_count from  For Instagram:
+           DOM/script JSON)   1. Reel page → screenshot BEFORE Escape
+                              2. Profile grid → screenshot for view count
+                            vision_extract.py → Claude Haiku
+                              (screenshot → JSON)
          \                /
           processor merges result
                   ↓
