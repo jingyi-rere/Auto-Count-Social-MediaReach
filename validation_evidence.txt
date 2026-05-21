@@ -1,11 +1,11 @@
 AUTO-COUNT SOCIAL MEDIA REACH — VALIDATION EVIDENCE
-Generated: 18 May 2026
+Generated: 21 May 2026
 Test suite: .venv/bin/pytest tests/ -v --tb=short
 
 ════════════════════════════════════════════════════
 1. FUNCTIONAL / UNIT TESTS
 ════════════════════════════════════════════════════
-Result: 283 passed, 0 failed, 3 warnings in 3.86s
+Result: 283 passed, 0 failed, 3 warnings in 4.43s
 
 Per-file breakdown:
   test_positive_cases.py       — 70 passed
@@ -23,20 +23,21 @@ Per-file breakdown:
   TOTAL                        — 283 passed
 
 Key functional tests:
-  test_positive_cases.py::TestPositiveGetNewRows::test_new_youtube_row_returned PASSED
-  test_positive_cases.py::TestPositiveGetNewRows::test_new_instagram_row_returned PASSED
-  test_positive_cases.py::TestPositiveGetNewRows::test_multiple_new_rows_all_returned PASSED
-  test_positive_cases.py::TestPositiveGetNewRows::test_partial_fill_date_only_reprocessed PASSED
-  test_positive_cases.py::TestPositiveGetNewRows::test_partial_fill_views_only_reprocessed PASSED
   test_lark_reader.py::TestGetNewRows::test_returns_row_with_url_but_no_date_or_views PASSED
   test_lark_reader.py::TestGetNewRows::test_skips_row_with_both_date_and_views PASSED
   test_lark_reader.py::TestGetNewRows::test_includes_row_with_date_but_no_views PASSED
   test_lark_reader.py::TestGetNewRows::test_includes_row_with_views_but_no_date PASSED
+  test_lark_reader.py::TestGetNewRows::test_skips_row_without_url PASSED
+  test_lark_reader.py::TestGetNewRows::test_mixed_rows_returns_only_unprocessed PASSED
   test_lark_writer.py::test_write_to_A_succeeds PASSED
   test_lark_writer.py::test_write_to_D_succeeds PASSED
   test_lark_writer.py::test_write_to_E_succeeds PASSED
   test_lark_writer.py::test_write_to_G_succeeds PASSED
   test_lark_writer.py::test_write_row_makes_single_api_call PASSED
+  test_positive_cases.py::TestPositiveRouting::test_youtube_standard PASSED
+  test_positive_cases.py::TestPositiveRouting::test_instagram_reel PASSED
+  test_positive_cases.py::TestPositiveCleanCaption::test_removes_chinese_hashtags PASSED
+  test_positive_cases.py::TestPositiveCleanCaption::test_removes_mixed_language_hashtags PASSED
 
 ════════════════════════════════════════════════════
 2. INTEGRATION / END-TO-END TESTS
@@ -46,19 +47,26 @@ Cross-module pipeline coverage (all mocked — no real network calls):
 Lark read → process → write pipeline:
   test_positive_cases.py covers the full watcher cycle:
     - lark_reader.get_new_rows() detects URL in Column F
-    - processor.py routes to correct extractor (yt-dlp or Vision)
+    - processor.py routes to correct extractor (yt-dlp, Firefox+DOM, or Vision)
     - lark_writer.write_row() writes to columns A, D, E, G in single API call
     - PIC filter: only rows where PIC = "TAN JING YI" are returned
 
-Browser + Vision pipeline (Instagram/RedNote):
-  test_positive_cases.py::TestPositiveVisionExtraction — exercises browser_reader
-  mock path: goto(url) → capture page.url + screenshot BEFORE Escape →
-             navigate to profile grid → capture grid screenshot →
-             send both to Claude Haiku Vision → parse JSON → write to Lark
+Three-track extraction pipeline tested:
+  Track 1 — YouTube (yt-dlp):
+    test_positive_cases.py::TestPositiveRouting::test_youtube_standard PASSED
+    test_positive_cases.py::TestPositiveRouting::test_youtube_short_domain PASSED
+    test_positive_cases.py::TestPositiveRouting::test_youtube_shorts PASSED
 
-yt-dlp pipeline (YouTube/TikTok):
-  test_positive_cases.py::TestPositiveYtDlp — exercises metadata_reader
-  mock path: yt-dlp subprocess → parse title/date/view_count → write to Lark
+  Track 2 — TikTok / X (Firefox + DOM):
+    test_positive_cases.py::TestPositiveRouting::test_tiktok_url PASSED
+    test_positive_cases.py::TestPositiveRouting::test_x_twitter_url PASSED
+    test_processor.py — 15 tests covering DOM routing and data extraction
+
+  Track 3 — Instagram / RedNote (Firefox + Vision):
+    test_positive_cases.py::TestPositiveRouting::test_instagram_reel PASSED
+    mock path: goto(url) → capture page.url + screenshot BEFORE Escape →
+               navigate to profile grid → capture grid screenshot →
+               send both to Claude Haiku Vision → parse JSON → write to Lark
 
 Lark write atomicity:
   test_lark_writer.py::test_write_row_makes_single_api_call PASSED
@@ -73,29 +81,34 @@ Retry logic:
 From test_negative_cases.py (64 tests) and test_lark_reader.py:
 
 URL edge cases:
-  test_negative_cases.py::TestNegativeUrlHandling::test_empty_url_skipped PASSED
-  test_negative_cases.py::TestNegativeUrlHandling::test_malformed_url_skipped PASSED
-  test_negative_cases.py::TestNegativeUrlHandling::test_unknown_platform_skipped PASSED
+  test_negative_cases.py::TestNegativeExtractUrl::test_none_returns_none PASSED
+  test_negative_cases.py::TestNegativeExtractUrl::test_empty_string_returns_none PASSED
+  test_negative_cases.py::TestNegativeExtractUrl::test_whitespace_only_returns_none PASSED
+  test_negative_cases.py::TestNegativeExtractUrl::test_empty_dict_returns_none PASSED
+  test_negative_cases.py::TestNegativeExtractUrl::test_dict_with_no_link_key_returns_none PASSED
   test_lark_reader.py::TestGetNewRows::test_skips_row_without_url PASSED
-  test_lark_reader.py::TestExtractUrl::test_empty_string_returns_none PASSED
-  test_lark_reader.py::TestExtractUrl::test_none_returns_none PASSED
-  test_lark_reader.py::TestExtractUrl::test_empty_dict_returns_none PASSED
 
-Vision output edge cases:
-  test_negative_cases.py::TestNegativeVision::test_hallucinated_view_count_rejected PASSED
-  test_negative_cases.py::TestNegativeVision::test_missing_caption_handled PASSED
-  test_negative_cases.py::TestNegativeVision::test_malformed_json_retried PASSED
-  test_vision_extract.py — 21 tests covering: compression, parse errors, retry
+Caption edge cases:
+  test_negative_cases.py::TestNegativeCleanCaption::test_none_returns_no_caption PASSED
+  test_negative_cases.py::TestNegativeCleanCaption::test_only_hashtags_returns_no_caption PASSED
+  test_negative_cases.py::TestNegativeCleanCaption::test_only_chinese_hashtags_returns_no_caption PASSED
+  test_negative_cases.py::TestNegativeCleanCaption::test_mixed_hashtags_only_returns_no_caption PASSED
 
-PIC filter (prevents writing other team members' rows):
-  test_lark_reader.py::TestGetNewRows — all 6 tests include PIC field in mock data
-  Filter ensures: rows where PIC != "TAN JING YI" are silently skipped
+Date edge cases:
+  test_negative_cases.py::TestNegativeTimestamp::test_relative_days_ago_returns_none PASSED
+  test_negative_cases.py::TestNegativeTimestamp::test_relative_weeks_returns_none PASSED
+  test_negative_cases.py::TestNegativeTimestamp::test_random_garbage_returns_none PASSED
 
-Login wall / session expiry:
-  test_negative_cases.py::TestNegativeBrowser::test_login_wall_detected PASSED
-  test_negative_cases.py::TestNegativeBrowser::test_session_expired_friendly_error PASSED
+Column protection (illegal write attempts):
+  test_negative_cases.py::TestNegativeWriteCell::test_column_B_raises PASSED
+  test_negative_cases.py::TestNegativeWriteCell::test_column_C_raises PASSED
+  test_negative_cases.py::TestNegativeWriteCell::test_column_F_raises PASSED
+  test_negative_cases.py::TestNegativeWriteCell::test_column_H_raises PASSED
+  test_negative_cases.py::TestNegativeWriteCell::test_column_I_raises PASSED
+  test_negative_cases.py::TestNegativeWriteCell::test_column_Z_raises PASSED
+  test_negative_cases.py::TestNegativeWriteCell::test_lark_api_error_raises_runtime PASSED
 
-Lark field format variations:
+Lark URL format variations:
   test_lark_reader.py::TestExtractUrl::test_plain_string_url PASSED
   test_lark_reader.py::TestExtractUrl::test_lark_dict_format PASSED
   test_lark_reader.py::TestExtractUrl::test_lark_list_of_dicts PASSED
@@ -105,53 +118,58 @@ Lark field format variations:
 ════════════════════════════════════════════════════
 From test_security.py (19 tests) and test_lark_writer.py:
 
+API key / secret handling:
+  test_security.py::TestApiKeysNotHardcoded::test_no_real_anthropic_key_in_source_code PASSED
+  test_security.py::TestApiKeysNotHardcoded::test_no_lark_secret_in_source_code PASSED
+  test_security.py::TestApiKeysNotHardcoded::test_env_file_exists PASSED
+  test_security.py::TestApiKeysNotHardcoded::test_env_file_is_gitignored PASSED
+  test_security.py::TestApiKeysNotHardcoded::test_env_template_has_no_real_values PASSED
+  test_security.py::TestApiKeysNotHardcoded::test_logs_folder_not_committed PASSED
+  → .env is git-ignored; .env.template (no secrets) committed instead
+
 Column allowlist enforcement (hard exception in code):
+  test_security.py::TestColumnProtection::test_url_column_F_is_completely_blocked PASSED
+  test_security.py::TestColumnProtection::test_cannot_write_to_column_B PASSED
+  test_security.py::TestColumnProtection::test_cannot_write_to_column_C PASSED
+  test_security.py::TestColumnProtection::test_cannot_write_to_column_H PASSED
+  test_security.py::TestColumnProtection::test_only_four_columns_ever_writable PASSED
+  test_security.py::TestColumnProtection::test_error_message_is_clear_when_blocked PASSED
   test_lark_writer.py::test_write_to_B_raises PASSED
   test_lark_writer.py::test_write_to_C_raises PASSED
   test_lark_writer.py::test_write_to_F_raises PASSED
   test_lark_writer.py::test_write_to_H_raises PASSED
   test_lark_writer.py::test_unknown_column_raises PASSED
-  → Any write to Column B/C/F/H raises ValueError immediately
 
-Instagram shortcode validation:
-  test_security.py::TestShortcodeValidation::test_valid_shortcode_accepted PASSED
-  test_security.py::TestShortcodeValidation::test_path_traversal_rejected PASSED
-  test_security.py::TestShortcodeValidation::test_script_injection_rejected PASSED
-  test_security.py::TestShortcodeValidation::test_sql_injection_rejected PASSED
-  → Allowlist: alphanumeric + underscore + hyphen only
-
-Prompt injection resistance:
-  test_security.py::TestPromptInjection::test_caption_with_prompt_injection_not_executed PASSED
-  test_security.py::TestPromptInjection::test_url_with_instructions_not_followed PASSED
-  → Vision receives image only; caption text never injected into system prompt
-
-Secret handling:
-  test_security.py::TestSecretHandling::test_api_key_not_in_logs PASSED
-  test_security.py::TestSecretHandling::test_env_vars_not_hardcoded PASSED
-  → .env is git-ignored; .env.template (no secrets) committed
+Friendly error safety:
+  test_security.py::TestFriendlyErrorsSafe::test_friendly_error_imported_successfully PASSED
+  test_security.py::TestFriendlyErrorsSafe::test_friendly_error_returns_string PASSED
+  test_security.py::TestFriendlyErrorsSafe::test_friendly_error_for_firefox_crash PASSED
+  test_security.py::TestFriendlyErrorsSafe::test_friendly_error_for_lark_permission PASSED
 
 ════════════════════════════════════════════════════
 5. PERFORMANCE
 ════════════════════════════════════════════════════
 From test_performance.py (9 tests):
 
-Latency thresholds:
-  test_performance.py::TestLatency::test_ytdlp_completes_under_10_seconds PASSED
-  test_performance.py::TestLatency::test_lark_write_completes_under_5_seconds PASSED
-  test_performance.py::TestLatency::test_watcher_cycle_under_3_minutes PASSED
+Function speed thresholds:
+  test_performance.py::TestFunctionSpeed::test_caption_cleaning_is_instant PASSED
+  test_performance.py::TestFunctionSpeed::test_url_extraction_is_instant PASSED
+  test_performance.py::TestFunctionSpeed::test_date_conversion_is_instant PASSED
+  test_performance.py::TestFunctionSpeed::test_url_routing_is_instant PASSED
 
-Token cost targets:
-  test_performance.py::TestTokenCost::test_vision_prompt_under_token_limit PASSED
-  test_performance.py::TestTokenCost::test_compressed_screenshot_under_4_5mb PASSED
+Workload targets:
+  test_performance.py::TestWeeklyWorkload::test_process_5_youtube_videos_quickly PASSED
+  test_performance.py::TestWeeklyWorkload::test_process_15_videos_max_workload PASSED
+  test_performance.py::TestWeeklyWorkload::test_lark_is_only_checked_once_per_cycle PASSED
 
-Watcher polling efficiency:
-  test_performance.py::TestWatcherCycle::test_watcher_skips_already_filled_rows PASSED
-  → get_new_rows() returns only unfilled rows; skips rows with both A and G filled
+Image compression:
+  test_performance.py::TestImageCompression::test_small_image_skips_compression_instantly PASSED
+  test_performance.py::TestImageCompression::test_large_image_compressed_under_1_second PASSED
 
 Measured latency from live run (21 May 2026 — 15 URLs, 5 platforms):
-  YouTube Shorts (yt-dlp)  — 2–3 seconds per URL (exact)
-  X (Twitter) (Firefox+DOM) — 8–10 seconds per URL
-  TikTok (Firefox+DOM)      — 12–15 seconds per URL (profile grid navigation)
+  YouTube Shorts (yt-dlp)    — 2–3 seconds per URL (exact)
+  X (Twitter) (Firefox+DOM)  — 8–10 seconds per URL
+  TikTok (Firefox+DOM)       — 12–15 seconds per URL
   Instagram (Firefox+Vision) — 18–22 seconds per URL
   Full 15-URL batch          — ~3 minutes 20 seconds total (single watcher cycle)
   Watcher is single-threaded: cycles run sequentially, sleep starts AFTER cycle completes — no overlap possible.
@@ -161,20 +179,27 @@ Measured latency from live run (21 May 2026 — 15 URLs, 5 platforms):
 ════════════════════════════════════════════════════
 From test_uiux.py (16 tests):
 
-Lark field formatting:
-  test_uiux.py::TestDateFormatting::test_date_written_as_iso_format PASSED
-  test_uiux.py::TestDateFormatting::test_date_format_consistent_across_platforms PASSED
-  test_uiux.py::TestCaptionFormatting::test_hashtags_stripped_from_caption PASSED
-  test_uiux.py::TestCaptionFormatting::test_unicode_hashtags_stripped PASSED
-  test_uiux.py::TestCaptionFormatting::test_chinese_hashtags_stripped PASSED
+Human-readable error messages:
+  test_uiux.py::TestErrorMessagesAreHumanReadable::test_firefox_crash_message_is_understandable PASSED
+  test_uiux.py::TestErrorMessagesAreHumanReadable::test_no_internet_message_is_understandable PASSED
+  test_uiux.py::TestErrorMessagesAreHumanReadable::test_lark_permission_message_tells_you_what_to_do PASSED
+  test_uiux.py::TestErrorMessagesAreHumanReadable::test_private_video_message_is_clear PASSED
+  test_uiux.py::TestErrorMessagesAreHumanReadable::test_missing_package_message_tells_you_to_install PASSED
+  test_uiux.py::TestErrorMessagesAreHumanReadable::test_forbidden_column_message_is_clear PASSED
+  test_uiux.py::TestErrorMessagesAreHumanReadable::test_every_error_message_has_emoji_or_marker PASSED
+  test_uiux.py::TestErrorMessagesAreHumanReadable::test_error_message_always_points_to_log_or_gives_action PASSED
 
-View count display:
-  test_uiux.py::TestViewCount::test_view_count_written_as_integer PASSED
-  test_uiux.py::TestViewCount::test_view_count_not_formatted_with_commas PASSED
+Log file readability:
+  test_uiux.py::TestLogFileReadability::test_log_file_is_created_automatically PASSED
+  test_uiux.py::TestLogFileReadability::test_log_file_has_timestamps PASSED
+  test_uiux.py::TestLogFileReadability::test_log_file_has_clear_level_labels PASSED
+  test_uiux.py::TestLogFileReadability::test_log_folder_exists PASSED
 
-Processor output readability:
-  test_uiux.py::TestProcessorOutputIsInformative::test_success_result_includes_platform PASSED
+Processor output:
+  test_uiux.py::TestProcessorOutputIsInformative::test_result_always_has_status_field PASSED
+  test_uiux.py::TestProcessorOutputIsInformative::test_successful_result_includes_the_data PASSED
   test_uiux.py::TestProcessorOutputIsInformative::test_failed_result_includes_error_description PASSED
+  test_uiux.py::TestProcessorOutputIsInformative::test_result_always_includes_the_url PASSED
 
 Content type hardcoding:
   Column E always written as "Content Casual" — enforced by hard constant in lark_writer.py
@@ -188,6 +213,19 @@ System: watcher.py polling Lark Bitable every 3 minutes.
 PIC filter active: only rows where PIC = "TAN JING YI" are processed.
 Platforms tested: Instagram (5), YouTube Shorts (4), X/Twitter (5), TikTok (1)
 Total: 15 URLs — 15 OK, 0 errors (single cycle, ~3 min 20 sec)
+
+Extraction method:
+  - YouTube: yt-dlp (exact metadata, no browser, 2–3 sec per URL)
+  - TikTok: Firefox + DOM (caption from data-e2e element; view count from embedded script JSON playCount)
+  - X (Twitter): Firefox + DOM (caption from tweetText; date from time element; view count from post page)
+  - Instagram: Firefox + DOM + Claude Haiku Vision (two-screenshot approach)
+  - RedNote: Firefox + Claude Haiku Vision (single screenshot)
+
+Instagram flow (two-screenshot approach):
+  1. Navigate to reel URL → capture page.url AND screenshot BEFORE pressing Escape
+     (Escape can close the reel viewer and navigate back to profile grid)
+  2. Navigate to profile reels grid → capture screenshot for view count
+  3. Send both screenshots to Claude Haiku → returns {posted_date, caption, view_count}
 
 Results:
 
@@ -213,12 +251,14 @@ Results:
 
   TikTok (1 URL — Firefox + DOM + embedded script JSON):
     video/7621901005... → Date: 2026-03-27  Views:     95  Caption: 也没错...但想到每次要重新开始 ✓
+    Note: view count read from "playCount" key in embedded <script> JSON —
+    avoids "Just watched" overlay bug that would show wrong count from profile grid
 
 Watcher behaviour confirmed:
   - Cycle detected all 15 new rows in first poll ✓
   - PIC filter: only "TAN JING YI" rows processed ✓
   - All values written to Lark columns A, D, E, G ✓
-  - Watcher stopped automatically after cycle found no remaining empty rows ✓
+  - Watcher is single-threaded: sleep starts AFTER cycle completes — no overlap ✓
   - Zero errors across all 15 rows ✓
 
 All data verified by checking Lark Bitable after each write.
@@ -227,12 +267,11 @@ All data verified by checking Lark Bitable after each write.
 SUMMARY
 ════════════════════════════════════════════════════
 Total: 283 tests — 283 passed, 0 failed
-Duration: 3.86s
+Duration: 4.43s
 All 7 validation angles covered.
 
 Build evidence:
-  - class.patch: 137 KB — includes src/browser_reader.py (Instagram screenshot-before-Escape fix),
-    src/lark_reader.py (PIC filter), generate_brd.py, generate_tdd.py,
-    BRD_Auto_Count_Social_Media_Reach.md (v5.4), TDD_Auto_Count_Social_Media_Reach.md (v3.4)
-  - Base commit: d05ea75 (BRD v5.2 + TDD v3.2 — Day 3 feedback)
-  - Diff range: d05ea75..HEAD (shows all Instagram work + PIC filter + BRD/TDD updates)
+  - class.patch: generated from b8987b7 (first source commit) to HEAD — includes all src/, tests/,
+    watcher.py, generate_brd.py, generate_tdd.py, BRD/TDD .md files
+  - Live 5-platform test: 15/15 URLs written correctly on 21 May 2026
+  - Generator scripts updated to v5.5/v3.5 — TikTok→Firefox+DOM, X(Twitter) added, Phase 4 rollback
