@@ -873,7 +873,8 @@ of platform, language, or UI version.
 | Platform | Method | Notes |
 |----------|--------|-------|
 | YouTube | yt-dlp | Exact numbers, no browser, <10 sec |
-| TikTok | yt-dlp | Exact numbers, no browser, <10 sec |
+| TikTok | Firefox + DOM | Caption/date from DOM elements; view count from embedded page JSON (`playCount`) |
+| X (Twitter) | Firefox + DOM | Caption from `tweetText`; date from `<time>`; view count from post page |
 | Instagram | Firefox + Claude Vision | Two-screenshot: reel page (before Escape) + profile grid |
 | RedNote | Firefox + Claude Vision | Single screenshot of video page |
 
@@ -882,7 +883,6 @@ of platform, language, or UI version.
 | Platform | Status | Blocker |
 |----------|--------|---------|
 | Facebook | Not built | No public API; login wall varies by account type |
-| X (Twitter) | Not built | API access requires paid tier |
 | Threads | Not built | No API; UI too new/unstable for reliable Vision |
 
 ---
