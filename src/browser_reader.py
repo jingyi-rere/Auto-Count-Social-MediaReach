@@ -475,19 +475,24 @@ async def _take_screenshot(url: str):
             headless=False,
             viewport={"width": 1280, "height": 900},
         )
-        # Push Firefox behind the current active app so it doesn't interrupt the user.
+        # Immediately give focus back to whatever app the user had open before Firefox launched.
         import subprocess as _sp
 
-        _sp.Popen(
+        _prev = _sp.run(
             [
                 "osascript",
                 "-e",
-                'tell application "System Events" to set frontmost of every process'
-                ' whose name is "firefox" to false',
+                'tell application "System Events" to get name of first process whose frontmost is true',
             ],
-            stdout=_sp.DEVNULL,
-            stderr=_sp.DEVNULL,
-        )
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if _prev and _prev.lower() != "firefox":
+            _sp.Popen(
+                ["osascript", "-e", f'tell application "{_prev}" to activate'],
+                stdout=_sp.DEVNULL,
+                stderr=_sp.DEVNULL,
+            )
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
         try:
             if "instagram.com" in url:
