@@ -490,7 +490,6 @@ make_table(doc,
     ['Platform', 'Video Format', 'Planned Data Source', 'Blocker'],
     [
         ('Facebook', 'Video / Reels', 'Firefox + Claude Vision', 'Requires Facebook Business account for API; UI scraping feasible but untested'),
-        ('X (Twitter)', 'Video post', 'Firefox + Claude Vision', 'X aggressively blocks automation; login required for all content'),
         ('Threads', 'Video post', 'Firefox + Claude Vision', 'No API; UI scraping feasible but not yet implemented'),
     ],
     [1.2, 1.0, 1.8, 2.5]
