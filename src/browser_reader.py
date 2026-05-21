@@ -161,44 +161,28 @@ async def _get_x_data(page, post_url: str):
 
     post_screenshot = await page.screenshot(full_page=False)
 
-    # Navigate to /analytics for exact Impressions count (requires login as post owner)
+    # Click the analytics link (the view count number) to open the Post Analytics modal.
+    # This requires being logged in as the post owner.
     dom_view_count = None
-    analytics_url = clean_url + "/analytics"
     try:
-        log.info("X: loading analytics page %s", analytics_url)
-        await page.goto(analytics_url, wait_until="domcontentloaded", timeout=30_000)
-        await page.wait_for_timeout(3_000)
-        raw_vc = await page.evaluate(
+        clicked = await page.evaluate(
             """
             () => {
-                const body = document.body.innerText;
-                // Analytics page: "Impressions\\n41,508" or "41,508\\nImpressions"
-                let m = body.match(/Impressions\\s*\\n\\s*([\d,]+)/i);
-                if (m) return m[1].replace(/,/g, '');
-                m = body.match(/([\d,]+)\\s*\\n\\s*Impressions/i);
-                if (m) return m[1].replace(/,/g, '');
-                return null;
+                const link = document.querySelector('a[href*="/analytics"]');
+                if (link) { link.click(); return true; }
+                return false;
             }
         """
         )
-        dom_view_count = _parse_count_text(raw_vc)
-        if dom_view_count is not None:
-            log.info("X: impressions = %d (raw: %s)", dom_view_count, raw_vc)
-        else:
-            log.debug("X: impressions not found — falling back to post page view count")
-    except Exception as exc:
-        log.debug("X: analytics extraction failed: %s", exc)
-
-    # Fallback: read rounded view count from post page if analytics failed
-    if dom_view_count is None:
-        try:
-            await page.goto(post_url, wait_until="domcontentloaded", timeout=30_000)
-            await page.wait_for_timeout(3_000)
+        if clicked:
+            await page.wait_for_timeout(2_000)
             raw_vc = await page.evaluate(
                 """
                 () => {
                     const body = document.body.innerText;
-                    let m = body.match(/([\d,.]+[KkMm]?)\\s*\\n\\s*(?:Views?|Impressions?)/i);
+                    let m = body.match(/Impressions\\s*\\n\\s*([\\d,]+)/i);
+                    if (m) return m[1].replace(/,/g, '');
+                    m = body.match(/([\\d,]+)\\s*\\n\\s*Impressions/i);
                     if (m) return m[1].replace(/,/g, '');
                     return null;
                 }
@@ -207,7 +191,32 @@ async def _get_x_data(page, post_url: str):
             dom_view_count = _parse_count_text(raw_vc)
             if dom_view_count is not None:
                 log.info(
-                    "X: post-page view count = %d (raw: %s)", dom_view_count, raw_vc
+                    "X: impressions (exact) = %d (raw: %s)", dom_view_count, raw_vc
+                )
+            else:
+                log.debug("X: analytics modal opened but Impressions not found")
+        else:
+            log.debug("X: analytics link not found — not logged in as post owner")
+    except Exception as exc:
+        log.debug("X: analytics click failed: %s", exc)
+
+    # Fallback: read rounded view count from post page if analytics modal failed
+    if dom_view_count is None:
+        try:
+            raw_vc = await page.evaluate(
+                """
+                () => {
+                    const body = document.body.innerText;
+                    let m = body.match(/([\\d,.]+[KkMm]?)\\s*\\n\\s*(?:Views?|Impressions?)/i);
+                    if (m) return m[1].replace(/,/g, '');
+                    return null;
+                }
+            """
+            )
+            dom_view_count = _parse_count_text(raw_vc)
+            if dom_view_count is not None:
+                log.info(
+                    "X: view count (rounded) = %d (raw: %s)", dom_view_count, raw_vc
                 )
         except Exception as exc:
             log.debug("X: post-page view count fallback failed: %s", exc)
