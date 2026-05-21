@@ -2,7 +2,7 @@
 ## Auto Count Social Media Reach — AI-Assisted Video Metrics Automation System
 
 **Version:** 3.5 | **Date:** 21 May 2026 | **Status:** Final | **Prepared By:** jingyi-rere
-**Based On:** BRD v5.5
+**Based On:** BRD v5.4
 
 ---
 
@@ -41,7 +41,7 @@ A hard allowlist in `lark_writer.py` ensures no other columns can ever be writte
 
 ## 1.0 Architecture & Approach
 
-**Two-track extraction pipeline:**
+**Three-track extraction pipeline:**
 
 **Track 1 — YouTube (yt-dlp)**
 - Passes URL to yt-dlp; retrieves title, upload date, view count from platform CDN metadata
@@ -51,7 +51,7 @@ A hard allowlist in `lark_writer.py` ensures no other columns can ever be writte
 **Track 2 — TikTok / X (Firefox + DOM)**
 - Firefox navigates to the post URL; dismisses login popup
 - **TikTok:** caption from `[data-e2e="browse-video-desc"]`; date from `<time>` or body text; view count from `"playCount"` embedded in page `<script>` JSON
-- **X (Twitter):** caption from `[data-testid="tweetText"]`; date from `<time datetime>`; view count from post page rounded display or analytics modal (if logged in as post owner)
+- **X (Twitter):** caption from `[data-testid="tweetText"]`; date from `<time datetime>`; view count from post page rounded display or analytics modal
 - No Vision needed — all data read from DOM
 
 **Track 3 — Instagram / RedNote (Firefox + Claude Vision)**
@@ -125,12 +125,10 @@ lark_reader.get_new_rows() → [(record_id, url), ...]
 processor.process(record_id, url)
          ↓
           Is YouTube?
-         /          \
-       YES           NO
+         /                 YES           NO
         ↓             ↓
      yt-dlp     Is TikTok or X?
-  (title, date,   /         \
-   view_count)  YES           NO (Instagram/RedNote)
+  (title, date,   /            view_count)  YES           NO (Instagram/RedNote)
                  ↓             ↓
           browser_reader    browser_reader.py
           Firefox+DOM       Firefox opens URL
@@ -158,7 +156,7 @@ processor.process(record_id, url)
 | Component | Technology | Version |
 |-----------|-----------|---------|
 | Browser automation | Playwright (Firefox) | 1.44.0 |
-| YouTube/TikTok extraction | yt-dlp | latest |
+| YouTube extraction | yt-dlp | latest |
 | Vision AI | Claude Haiku (claude-haiku-4-5) | via Anthropic API |
 | Lark integration | lark-oapi | 1.3.5 |
 | Environment config | python-dotenv | 1.0.1 |
@@ -216,7 +214,7 @@ async def extract_instagram(url):
 
 ### 4.5 processor.py
 
-- Routes URL: `youtube.com` / `youtu.be` → yt-dlp; `tiktok.com` / `x.com` / `twitter.com` → Firefox+DOM; `instagram.com` / `xiaohongshu.com` / `xhslink.com` → Firefox+Vision
+- Routes URL: `youtube.com` / `youtu.be` / `tiktok.com` → yt-dlp; others → browser
 - Strips hashtags: `re.sub(r'#[\w\u00C0-\u024F\u4e00-\u9fff]+', '', caption)`
 - Merges results and calls `lark_writer.write_row()`
 
@@ -329,7 +327,7 @@ A full 15-URL batch was run across all 5 platforms in a single watcher cycle:
 | TikTok | 1 | ✓ 1/1 written | 95 |
 | **TOTAL** | **15** | **15 OK, 0 errors** | — |
 
-**Accuracy confirmed:** All values verified against Lark Bitable after each write. PIC filter active throughout — only rows for "TAN JING YI" processed.
+**Accuracy confirmed:** All values verified against Lark Bitable after each write. PIC filter active throughout.
 
 ### Rollback Plan (if 95% accuracy target fails)
 

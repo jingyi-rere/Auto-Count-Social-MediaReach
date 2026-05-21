@@ -14,23 +14,24 @@
 | 5.2 | 13 May 2026 | jingyi-rere | Phase 1/2 scope clarified, baseline 40 min/week, accuracy thresholds aligned |
 | 5.3 | 18 May 2026 | jingyi-rere | Instagram view count from reel screenshot before Escape; watcher 3 min |
 | 5.4 | 18 May 2026 | jingyi-rere | Defensive baseline note removed (stated upfront); Phase 2 moved to Appendix A |
-| 5.5 | 21 May 2026 | jingyi-rere | TikTok → Firefox+DOM (not yt-dlp); X (Twitter) added; live 5-platform test confirmed |
+| 5.5 | 21 May 2026 | jingyi-rere | TikTok → Firefox+DOM (not yt-dlp); X (Twitter) added as 5th platform; live 5-platform test confirmed |
 
 ---
 
 ## 1. Executive Summary
 
 A video content creator at ricebowlmy spends ~40 minutes every week manually collecting
-performance data (posted date, caption, view count) from 4 platforms (Instagram, YouTube,
-TikTok, RedNote) and typing it into Lark Bitable. This system eliminates that 40 minutes.
+performance data (posted date, caption, view count) from 5 platforms (Instagram, YouTube,
+TikTok, X/Twitter, RedNote) and typing it into Lark Bitable. This system eliminates that 40 minutes.
 
 The user pastes video URLs into Lark Column F. A background watcher detects new URLs within
 3 minutes and auto-fills: posted date (Column A), caption without hashtags (Column D),
 content type (Column E), and view count (Column G).
 
-Claude AI Vision is required — not optional — because Instagram, TikTok, and RedNote have
-no public API, block scrapers, and change UI regularly. Only Vision can read any screenshot
-regardless of platform, language, or UI version.
+Claude AI Vision is used for Instagram and RedNote — platforms with no public API that block
+scrapers and change UI regularly. TikTok and X (Twitter) use Firefox + DOM extraction.
+YouTube uses yt-dlp for fast, exact metadata. Only Vision can read any screenshot regardless
+of platform, language, or UI version.
 
 **Projected outcome:** 38 minutes saved per week ≈ 33 hours per year, near-zero errors.
 
@@ -138,8 +139,9 @@ regardless of platform, language, or UI version.
 
 1. User pastes video URL into Column F of Lark Bitable
 2. watcher.py polls Lark every 3 minutes for rows where F has URL but A or G is empty
-3. For YouTube/TikTok: yt-dlp fetches title, date, view count (no browser needed, <10 sec)
-4. For Instagram/RedNote: Firefox loads the page using saved login session
+3. For YouTube: yt-dlp fetches title, date, view count (no browser needed, <10 sec)
+4. For TikTok/X (Twitter): Firefox navigates to the post page; caption, date, view count read from DOM and embedded JSON
+5. For Instagram/RedNote: Firefox loads the page using saved login session
 5. Instagram: two-screenshot approach — reel page screenshot (before Escape) for caption+date; profile grid for view count
 6. RedNote: single screenshot of video page for all three fields
 7. Screenshot sent to Claude Haiku Vision → returns JSON {posted_date, caption, view_count}
@@ -154,8 +156,8 @@ regardless of platform, language, or UI version.
 |----------|--------|-------|
 | YouTube | yt-dlp | Exact numbers, no browser, <10 sec |
 | TikTok | Firefox + DOM | Caption/date from DOM elements; view count from embedded page JSON (`playCount`) |
-| Instagram | Firefox + DOM + Claude Vision | DOM for caption/date; two-screenshot for view count (reel page before Escape + profile grid) |
-| X (Twitter) | Firefox + DOM | Caption from `tweetText`; date from `<time>`; view count from post page or analytics |
+| X (Twitter) | Firefox + DOM | Caption from `tweetText`; date from `<time>`; view count from post page |
+| Instagram | Firefox + Claude Vision | Two-screenshot: reel page (before Escape) + profile grid |
 | RedNote | Firefox + Claude Vision | Single screenshot of video page |
 
 ### Appendix A: Future Scope (Not Built)
@@ -163,7 +165,6 @@ regardless of platform, language, or UI version.
 | Platform | Status | Blocker |
 |----------|--------|---------|
 | Facebook | Not built | No public API; login wall varies by account type |
-| X (Twitter) | Not built | API access requires paid tier |
 | Threads | Not built | No API; UI too new/unstable for reliable Vision |
 
 ---
@@ -173,7 +174,7 @@ regardless of platform, language, or UI version.
 | ID | Requirement | Priority |
 |----|-------------|----------|
 | FR-01 | Detect new URLs in Column F within one watcher cycle (≤3 min) | Must Have |
-| FR-02 | Extract posted date, caption, view count for all 4 platforms | Must Have |
+| FR-02 | Extract posted date, caption, view count for all 5 platforms | Must Have |
 | FR-03 | Strip all hashtags from caption before writing | Must Have |
 | FR-04 | Write to columns A, D, E, G only | Must Have |
 | FR-05 | Never overwrite existing data in A, D, E, G | Must Have |
@@ -224,4 +225,4 @@ regardless of platform, language, or UI version.
 
 ---
 
-*End of Document — Version 5.4*
+*End of Document — Version 5.5*
