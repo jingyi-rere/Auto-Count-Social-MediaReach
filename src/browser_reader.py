@@ -172,14 +172,13 @@ async def _get_x_data(page, post_url: str):
             }
         """
         )
-        log.info("X: view count raw_vc = %r", raw_vc)
         dom_view_count = _parse_count_text(raw_vc)
         if dom_view_count is not None:
-            log.info("X: view count = %d", dom_view_count)
+            log.info("X: view count = %d (raw: %s)", dom_view_count, raw_vc)
         else:
-            log.info("X: view count not found on post page")
+            log.debug("X: view count not found on post page")
     except Exception as exc:
-        log.info("X: view count extraction FAILED: %s", exc)
+        log.debug("X: view count extraction failed: %s", exc)
 
     post_screenshot = await page.screenshot(full_page=False)
 
