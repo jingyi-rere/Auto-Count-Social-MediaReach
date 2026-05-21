@@ -49,7 +49,7 @@ class TestRoute:
 
     # TikTok → vision
     def test_tiktok(self):
-        assert _route("https://www.tiktok.com/@user/video/123456") == "ytdlp"
+        assert _route("https://www.tiktok.com/@user/video/123456") == "vision"
 
     # Case-insensitive
     def test_youtube_uppercase(self):
