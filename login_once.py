@@ -25,14 +25,19 @@ async def login():
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
 
         # Instagram
-        print("\n[1/2] Opening Instagram login...")
+        print("\n[1/3] Opening Instagram login...")
         await page.goto("https://www.instagram.com/accounts/login/")
         input("    → Log into Instagram in the Firefox window, then press Enter here: ")
 
         # RedNote
-        print("\n[2/2] Opening RedNote login...")
+        print("\n[2/3] Opening RedNote login...")
         await page.goto("https://www.xiaohongshu.com")
         input("    → Log into RedNote in the Firefox window, then press Enter here: ")
+
+        # X (Twitter) — required for exact Impressions count from /analytics
+        print("\n[3/3] Opening X (Twitter) login...")
+        await page.goto("https://x.com/login")
+        input("    → Log into X in the Firefox window, then press Enter here: ")
 
         await ctx.close()
         print("\n✓ All done! Sessions saved permanently.")
