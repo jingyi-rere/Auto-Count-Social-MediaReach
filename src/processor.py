@@ -17,14 +17,13 @@ log = get_logger("processor")
 
 
 # Platforms handled by yt-dlp
-YTDLP_PLATFORMS = ("youtube.com", "youtu.be")
+YTDLP_PLATFORMS = ("youtube.com", "youtu.be", "tiktok.com")
 
 # Platforms handled by Firefox + Claude Vision
 VISION_PLATFORMS = (
     "instagram.com",
     "xiaohongshu.com",
     "xhslink.com",
-    "tiktok.com",
     "x.com",
     "twitter.com",
 )
