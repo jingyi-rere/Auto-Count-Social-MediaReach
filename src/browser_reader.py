@@ -109,6 +109,85 @@ def _js_find_thumbnail(shortcode: str) -> str:
     """
 
 
+# ── TikTok extractor ──────────────────────────────────────────────────────────
+
+
+async def _get_tiktok_data(page, post_url: str):
+    """
+    Extract TikTok post data via DOM.
+    Returns (post_screenshot, None, dom_date, dom_view_count, dom_caption).
+    """
+    log.info("TikTok: loading %s", post_url[:80])
+    await page.goto(post_url, wait_until="domcontentloaded", timeout=45_000)
+    await page.wait_for_timeout(5_000)
+
+    dom_caption = None
+    try:
+        raw_cap = await page.evaluate(
+            """
+            () => {
+                // TikTok video description element
+                const el = document.querySelector('[data-e2e="browse-video-desc"]')
+                    || document.querySelector('[class*="video-desc"]')
+                    || document.querySelector('[data-e2e="video-desc"]');
+                return el ? el.innerText.trim() : null;
+            }
+        """
+        )
+        if raw_cap and len(raw_cap) >= 3:
+            dom_caption = raw_cap
+            log.info("TikTok: caption = %r", dom_caption[:80])
+    except Exception as exc:
+        log.debug("TikTok: caption extraction failed: %s", exc)
+
+    dom_date = None
+    try:
+        raw_dt = await page.evaluate(
+            """
+            () => {
+                const t = document.querySelector('time[datetime]');
+                if (t) return t.getAttribute('datetime');
+                // Fallback: look for date text like "2026-03-27" in page
+                const body = document.body.innerText;
+                const m = body.match(/\\b(20\\d{2}-\\d{2}-\\d{2})\\b/);
+                return m ? m[1] : null;
+            }
+        """
+        )
+        if raw_dt:
+            dom_date = _parse_ig_date(raw_dt)
+            log.info("TikTok: date = %s (raw: %s)", dom_date, raw_dt)
+    except Exception as exc:
+        log.debug("TikTok: date extraction failed: %s", exc)
+
+    dom_view_count = None
+    try:
+        raw_vc = await page.evaluate(
+            """
+            () => {
+                // Try data-e2e selectors first
+                const el = document.querySelector('[data-e2e="video-views-count"]')
+                    || document.querySelector('[data-e2e="like-count"]');
+                if (el) return el.innerText.trim();
+                // Fallback: match "95 Views" or "95 views" in page text
+                const body = document.body.innerText;
+                const m = body.match(/([\\d,.]+[KkMm]?)\\s*(?:views?)/i);
+                return m ? m[1] : null;
+            }
+        """
+        )
+        dom_view_count = _parse_count_text(raw_vc)
+        if dom_view_count is not None:
+            log.info("TikTok: view count = %d (raw: %s)", dom_view_count, raw_vc)
+        else:
+            log.debug("TikTok: view count not found in DOM")
+    except Exception as exc:
+        log.debug("TikTok: view count extraction failed: %s", exc)
+
+    post_screenshot = await page.screenshot(full_page=False)
+    return post_screenshot, None, dom_date, dom_view_count, dom_caption
+
+
 # ── X (Twitter) extractor ─────────────────────────────────────────────────────
 
 
