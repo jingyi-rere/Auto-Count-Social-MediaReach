@@ -114,16 +114,70 @@ def _js_find_thumbnail(shortcode: str) -> str:
 
 async def _get_tiktok_data(page, post_url: str):
     """
-    Extract TikTok post data via DOM + profile grid (for view count).
+    Extract TikTok post data via DOM.
     Returns (post_screenshot, None, dom_date, dom_view_count, dom_caption).
 
     Flow:
-      1. Navigate to post URL → dismiss popup → caption + date
-      2. Navigate to author profile → find this video's thumbnail → read view count
-         (view count is in the grid even when "Just watched" overlays it visually,
-         because TikTok keeps the numeric text node in DOM)
+      1. Navigate to author PROFILE first — read the view count while it shows
+         the real number (before the video is marked "Just watched").
+      2. Navigate to the video page — dismiss popup, extract caption + date.
     """
-    log.info("TikTok: loading %s", post_url[:80])
+    username_m = _re.search(r"tiktok\.com/(@[^/?#]+)", post_url)
+    video_id_m = _re.search(r"/video/(\d+)", post_url)
+
+    # ── Step 1: profile grid → view count (before marking "Just watched") ──────
+    dom_view_count = None
+    if username_m and video_id_m:
+        profile_url = f"https://www.tiktok.com/{username_m.group(1)}"
+        video_id = video_id_m.group(1)
+
+        log.info("TikTok: navigating to profile %s for view count", profile_url)
+        await page.goto(profile_url, wait_until="domcontentloaded", timeout=45_000)
+        await page.wait_for_timeout(5_000)
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(800)
+
+        raw_vc = None
+        for _ in range(12):
+            raw_vc = await page.evaluate(
+                """
+                (videoId) => {
+                    // Find the exact video thumbnail <a> by video ID
+                    const link = document.querySelector(
+                        'a[href*="/video/' + videoId + '"]'
+                    );
+                    if (!link) return null;
+                    // Walk only the link's own text nodes (not siblings)
+                    const walker = document.createTreeWalker(
+                        link, NodeFilter.SHOW_TEXT, null, false
+                    );
+                    let node;
+                    while ((node = walker.nextNode())) {
+                        const t = node.textContent.trim();
+                        if (/^[\\d,.]+[KkMm]?$/.test(t)) return t;
+                    }
+                    return null;
+                }
+            """,
+                video_id,
+            )
+            if raw_vc:
+                break
+            await page.evaluate("window.scrollBy(0, 700)")
+            await page.wait_for_timeout(800)
+
+        if raw_vc:
+            dom_view_count = _parse_count_text(raw_vc)
+            log.info(
+                "TikTok: profile grid view count = %s (raw: %s)", dom_view_count, raw_vc
+            )
+        else:
+            log.info("TikTok: video %s not found in profile grid", video_id)
+    else:
+        log.debug("TikTok: could not extract username/video_id from %s", post_url)
+
+    # ── Step 2: video page → caption + date ───────────────────────────────────
+    log.info("TikTok: loading video page %s", post_url[:80])
     await page.goto(post_url, wait_until="domcontentloaded", timeout=45_000)
     await page.wait_for_timeout(5_000)
 
@@ -183,125 +237,6 @@ async def _get_tiktok_data(page, post_url: str):
         log.debug("TikTok: date extraction failed: %s", exc)
 
     post_screenshot = await page.screenshot(full_page=False)
-
-    # ── Step 2: profile grid → view count ─────────────────────────────────────
-    dom_view_count = None
-    try:
-        username_m = _re.search(r"tiktok\.com/(@[^/?#]+)", post_url)
-        video_id_m = _re.search(r"/video/(\d+)", post_url)
-
-        if username_m and video_id_m:
-            profile_url = f"https://www.tiktok.com/{username_m.group(1)}"
-            video_id = video_id_m.group(1)
-
-            log.info("TikTok: navigating to profile %s for view count", profile_url)
-            await page.goto(profile_url, wait_until="domcontentloaded", timeout=45_000)
-            await page.wait_for_timeout(5_000)
-            await page.keyboard.press("Escape")
-            await page.wait_for_timeout(800)
-
-            # Scroll until the thumbnail is found (max ~60 videos)
-            raw_vc = None
-            for i in range(12):
-                raw_vc = await page.evaluate(
-                    """
-                    (videoId) => {
-                        // Strategy 1: <a href*="/video/ID"> — walk its text nodes
-                        const link = document.querySelector(
-                            'a[href*="/video/' + videoId + '"]'
-                        );
-                        if (link) {
-                            const root = link.closest('[data-e2e]') || link;
-                            const walker = document.createTreeWalker(
-                                root, NodeFilter.SHOW_TEXT, null, false
-                            );
-                            let node;
-                            while ((node = walker.nextNode())) {
-                                const t = node.textContent.trim();
-                                if (/^[\\d,.]+[KkMm]?$/.test(t)) return t;
-                            }
-                        }
-
-                        // Strategy 2: any <a> whose href contains the video ID
-                        for (const a of document.querySelectorAll('a[href]')) {
-                            if (!a.href.includes(videoId)) continue;
-                            const walker = document.createTreeWalker(
-                                a, NodeFilter.SHOW_TEXT, null, false
-                            );
-                            let node;
-                            while ((node = walker.nextNode())) {
-                                const t = node.textContent.trim();
-                                if (/^[\\d,.]+[KkMm]?$/.test(t)) return t;
-                            }
-                        }
-
-                        // Strategy 3: "Just watched" container — grab any numeric sibling
-                        for (const el of document.querySelectorAll('*')) {
-                            if (el.children.length > 0) continue;
-                            const txt = (el.textContent || '').trim();
-                            if (!txt.toLowerCase().includes('just watched')) continue;
-                            const item = el.closest('[data-e2e="user-post-item"]')
-                                      || el.closest('div[class]')
-                                      || el.parentElement;
-                            if (!item) continue;
-                            const walker = document.createTreeWalker(
-                                item, NodeFilter.SHOW_TEXT, null, false
-                            );
-                            let node;
-                            while ((node = walker.nextNode())) {
-                                const t = node.textContent.trim();
-                                if (/^[\\d,.]+[KkMm]?$/.test(t)) return t;
-                            }
-                        }
-
-                        return null;
-                    }
-                """,
-                    video_id,
-                )
-                if raw_vc:
-                    break
-
-                # On first pass, log DOM state for debugging
-                if i == 0:
-                    dbg = await page.evaluate(
-                        """
-                        (videoId) => ({
-                            postItems: document.querySelectorAll(
-                                '[data-e2e="user-post-item"]').length,
-                            videoLinks: Array.from(document.querySelectorAll(
-                                'a[href*="/video/"]')).length,
-                            exactLink: !!document.querySelector(
-                                'a[href*="/video/' + videoId + '"]'),
-                            sampleHrefs: Array.from(document.querySelectorAll(
-                                'a[href*="/video/"]')).slice(0, 3).map(
-                                a => a.href.slice(-40)),
-                        })
-                    """,
-                        video_id,
-                    )
-                    log.info("TikTok profile DOM: %s", dbg)
-
-                await page.evaluate("window.scrollBy(0, 700)")
-                await page.wait_for_timeout(800)
-
-            if raw_vc:
-                dom_view_count = _parse_count_text(raw_vc)
-                log.info(
-                    "TikTok: profile grid view count = %s (raw: %s)",
-                    dom_view_count,
-                    raw_vc,
-                )
-            else:
-                log.info(
-                    "TikTok: video %s not found in profile grid after scrolling",
-                    video_id,
-                )
-        else:
-            log.debug("TikTok: could not extract username/video_id from %s", post_url)
-    except Exception as exc:
-        log.debug("TikTok: profile grid view count failed: %s", exc)
-
     return post_screenshot, None, dom_date, dom_view_count, dom_caption
 
 
