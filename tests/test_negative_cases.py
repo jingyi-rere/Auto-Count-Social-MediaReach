@@ -4,28 +4,30 @@ NEGATIVE TEST CASES — Auto-Count Social Media Reach
 All the things that SHOULD fail gracefully, raise the right error,
 or return safe fallback values instead of crashing the whole system.
 """
+
 import io
 import os
 import pytest
 from unittest.mock import MagicMock, patch
 from PIL import Image
 
-os.environ.setdefault("LARK_APP_ID",       "test_id")
-os.environ.setdefault("LARK_APP_SECRET",   "test_secret")
-os.environ.setdefault("LARK_APP_TOKEN",    "test_token")
-os.environ.setdefault("LARK_TABLE_ID",     "test_table")
+os.environ.setdefault("LARK_APP_ID", "test_id")
+os.environ.setdefault("LARK_APP_SECRET", "test_secret")
+os.environ.setdefault("LARK_APP_TOKEN", "test_token")
+os.environ.setdefault("LARK_TABLE_ID", "test_table")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test_key")
 
-from src.lark_writer    import write_cell, write_row, _to_lark_timestamp, ALLOWED_COLUMNS
-from src.lark_reader    import _extract_url
+from src.lark_writer import write_cell, write_row, _to_lark_timestamp, ALLOWED_COLUMNS
+from src.lark_reader import _extract_url
 from src.vision_extract import _clean_caption, _compress_image, extract_from_screenshot
-from src.processor      import _route
+from src.processor import _route
 from src import lark_writer, vision_extract, processor, lark_reader
 
 
 # ══════════════════════════════════════════════════════════════
 # 1. URL EXTRACTION — _extract_url  (bad inputs)
 # ══════════════════════════════════════════════════════════════
+
 
 class TestNegativeExtractUrl:
 
@@ -61,6 +63,7 @@ class TestNegativeExtractUrl:
 # ══════════════════════════════════════════════════════════════
 # 2. DATE CONVERSION — _to_lark_timestamp  (unparseable dates)
 # ══════════════════════════════════════════════════════════════
+
 
 class TestNegativeTimestamp:
 
@@ -104,6 +107,7 @@ class TestNegativeTimestamp:
 # 3. CAPTION CLEANING — bad inputs
 # ══════════════════════════════════════════════════════════════
 
+
 class TestNegativeCleanCaption:
 
     def test_none_returns_no_caption(self):
@@ -131,6 +135,7 @@ class TestNegativeCleanCaption:
 # ══════════════════════════════════════════════════════════════
 # 4. COLUMN ALLOWLIST — forbidden writes
 # ══════════════════════════════════════════════════════════════
+
 
 class TestNegativeWriteCell:
 
@@ -182,10 +187,18 @@ class TestNegativeWriteCell:
         mock_resp.success.return_value = False
         mock_resp.code = 1254302
         mock_resp.msg = "Permission denied"
-        monkeypatch.setattr(lark_writer, "_get_client",
-            lambda: MagicMock(bitable=MagicMock(v1=MagicMock(
-                app_table_record=MagicMock(update=MagicMock(return_value=mock_resp))
-            )))
+        monkeypatch.setattr(
+            lark_writer,
+            "_get_client",
+            lambda: MagicMock(
+                bitable=MagicMock(
+                    v1=MagicMock(
+                        app_table_record=MagicMock(
+                            update=MagicMock(return_value=mock_resp)
+                        )
+                    )
+                )
+            ),
         )
         with pytest.raises(RuntimeError, match="Lark write error"):
             write_cell("rec1", "D", "test value")
@@ -195,15 +208,20 @@ class TestNegativeWriteCell:
 # 5. WRITE ROW — graceful handling of missing data
 # ══════════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def mock_lark_ok(monkeypatch):
     mock_resp = MagicMock()
     mock_resp.success.return_value = True
     mock_update = MagicMock(return_value=mock_resp)
-    monkeypatch.setattr(lark_writer, "_get_client",
-        lambda: MagicMock(bitable=MagicMock(v1=MagicMock(
-            app_table_record=MagicMock(update=mock_update)
-        )))
+    monkeypatch.setattr(
+        lark_writer,
+        "_get_client",
+        lambda: MagicMock(
+            bitable=MagicMock(
+                v1=MagicMock(app_table_record=MagicMock(update=mock_update))
+            )
+        ),
     )
     return mock_update
 
@@ -256,6 +274,7 @@ class TestNegativeWriteRow:
 # 6. URL ROUTING — unknown or unsupported platforms
 # ══════════════════════════════════════════════════════════════
 
+
 class TestNegativeRouting:
 
     def test_facebook_defaults_to_ytdlp(self):
@@ -268,8 +287,8 @@ class TestNegativeRouting:
     def test_vimeo_defaults_to_ytdlp(self):
         assert _route("https://vimeo.com/123456789") == "ytdlp"
 
-    def test_twitter_defaults_to_ytdlp(self):
-        assert _route("https://twitter.com/user/status/123") == "ytdlp"
+    def test_twitter_routes_to_vision(self):
+        assert _route("https://twitter.com/user/status/123") == "vision"
 
     def test_completely_unknown_url_defaults_to_ytdlp(self):
         assert _route("https://www.somerandomblog.com/video/123") == "ytdlp"
@@ -278,6 +297,7 @@ class TestNegativeRouting:
 # ══════════════════════════════════════════════════════════════
 # 7. VISION EXTRACT — bad API responses
 # ══════════════════════════════════════════════════════════════
+
 
 def _fake_png():
     img = Image.new("RGB", (100, 100), (0, 0, 255))
@@ -297,32 +317,46 @@ def _mock_vision(text, monkeypatch):
 class TestNegativeVisionExtract:
 
     def test_view_count_null_returns_none(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": "Test", "view_count": null}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": "Test", "view_count": null}', monkeypatch
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["view_count"] is None
 
     def test_posted_date_null_returns_none(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": "Test", "view_count": 100}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": "Test", "view_count": 100}', monkeypatch
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["posted_date"] is None
 
     def test_empty_caption_becomes_no_caption(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": "", "view_count": 100}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": "", "view_count": 100}', monkeypatch
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["caption"] == "No caption"
 
     def test_caption_only_hashtags_becomes_no_caption(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": "#fyp #viral", "view_count": 100}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": "#fyp #viral", "view_count": 100}',
+            monkeypatch,
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["caption"] == "No caption"
 
     def test_view_count_null_string_returns_none(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": "Test", "view_count": "null"}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": "Test", "view_count": "null"}',
+            monkeypatch,
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["view_count"] is None
 
     def test_all_fields_null(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": null, "view_count": null}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": null, "view_count": null}', monkeypatch
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["view_count"] is None
         assert result["posted_date"] is None
@@ -330,7 +364,7 @@ class TestNegativeVisionExtract:
 
     def test_broken_json_fallback_extracts_what_it_can(self, monkeypatch):
         # Completely broken JSON — should not crash
-        _mock_vision('I cannot read this image clearly.', monkeypatch)
+        _mock_vision("I cannot read this image clearly.", monkeypatch)
         result = extract_from_screenshot(_fake_png())
         assert isinstance(result, dict)
         assert "view_count" in result
@@ -343,7 +377,10 @@ class TestNegativeVisionExtract:
         assert result["view_count"] is None  # missing key defaults to None
 
     def test_view_count_non_numeric_string_returns_none(self, monkeypatch):
-        _mock_vision('{"posted_date": null, "caption": "Test", "view_count": "many views"}', monkeypatch)
+        _mock_vision(
+            '{"posted_date": null, "caption": "Test", "view_count": "many views"}',
+            monkeypatch,
+        )
         result = extract_from_screenshot(_fake_png())
         assert result["view_count"] is None
 
@@ -352,14 +389,20 @@ class TestNegativeVisionExtract:
 # 8. PROCESSOR — error recovery
 # ══════════════════════════════════════════════════════════════
 
+
 class TestNegativeProcessAll:
 
     def test_yt_dlp_failure_logged_as_error(self, monkeypatch):
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            ("rec1", "https://www.youtube.com/watch?v=broken")
-        ])
-        monkeypatch.setattr(processor, "get_metadata",
-                            MagicMock(side_effect=RuntimeError("yt-dlp failed")))
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [("rec1", "https://www.youtube.com/watch?v=broken")],
+        )
+        monkeypatch.setattr(
+            processor,
+            "get_metadata",
+            MagicMock(side_effect=RuntimeError("yt-dlp failed")),
+        )
         monkeypatch.setattr(processor, "write_row", MagicMock())
         monkeypatch.setattr(processor, "get_screenshot", MagicMock())
 
@@ -368,14 +411,25 @@ class TestNegativeProcessAll:
         assert "yt-dlp failed" in results[0]["error"]
 
     def test_lark_write_failure_logged_as_error(self, monkeypatch):
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            ("rec1", "https://www.youtube.com/watch?v=abc")
-        ])
-        monkeypatch.setattr(processor, "get_metadata", MagicMock(return_value={
-            "posted_date": "2024-01-01", "caption": "Test", "view_count": 100
-        }))
-        monkeypatch.setattr(processor, "write_row",
-                            MagicMock(side_effect=RuntimeError("Lark API down")))
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [("rec1", "https://www.youtube.com/watch?v=abc")],
+        )
+        monkeypatch.setattr(
+            processor,
+            "get_metadata",
+            MagicMock(
+                return_value={
+                    "posted_date": "2024-01-01",
+                    "caption": "Test",
+                    "view_count": 100,
+                }
+            ),
+        )
+        monkeypatch.setattr(
+            processor, "write_row", MagicMock(side_effect=RuntimeError("Lark API down"))
+        )
         monkeypatch.setattr(processor, "get_screenshot", MagicMock())
 
         results = processor.process_all()
@@ -383,11 +437,16 @@ class TestNegativeProcessAll:
         assert "Lark API down" in results[0]["error"]
 
     def test_one_failure_does_not_stop_other_rows(self, monkeypatch):
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            ("rec1", "https://www.youtube.com/watch?v=broken"),
-            ("rec2", "https://www.youtube.com/watch?v=good"),
-        ])
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [
+                ("rec1", "https://www.youtube.com/watch?v=broken"),
+                ("rec2", "https://www.youtube.com/watch?v=good"),
+            ],
+        )
         call_count = 0
+
         def mock_metadata(url):
             nonlocal call_count
             call_count += 1
@@ -405,11 +464,16 @@ class TestNegativeProcessAll:
         assert results[1]["status"] == "ok"
 
     def test_screenshot_failure_logged_as_error(self, monkeypatch):
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            ("rec1", "https://www.instagram.com/reel/abc/")
-        ])
-        monkeypatch.setattr(processor, "get_screenshot",
-                            MagicMock(side_effect=Exception("Firefox crashed")))
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [("rec1", "https://www.instagram.com/reel/abc/")],
+        )
+        monkeypatch.setattr(
+            processor,
+            "get_screenshot",
+            MagicMock(side_effect=Exception("Firefox crashed")),
+        )
         monkeypatch.setattr(processor, "write_row", MagicMock())
         monkeypatch.setattr(processor, "get_metadata", MagicMock())
 
@@ -418,13 +482,18 @@ class TestNegativeProcessAll:
         assert "Firefox crashed" in results[0]["error"]
 
     def test_three_failures_all_recorded(self, monkeypatch):
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            ("rec1", "https://www.youtube.com/watch?v=a"),
-            ("rec2", "https://www.youtube.com/watch?v=b"),
-            ("rec3", "https://www.youtube.com/watch?v=c"),
-        ])
-        monkeypatch.setattr(processor, "get_metadata",
-                            MagicMock(side_effect=RuntimeError("timeout")))
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [
+                ("rec1", "https://www.youtube.com/watch?v=a"),
+                ("rec2", "https://www.youtube.com/watch?v=b"),
+                ("rec3", "https://www.youtube.com/watch?v=c"),
+            ],
+        )
+        monkeypatch.setattr(
+            processor, "get_metadata", MagicMock(side_effect=RuntimeError("timeout"))
+        )
         monkeypatch.setattr(processor, "write_row", MagicMock())
         monkeypatch.setattr(processor, "get_screenshot", MagicMock())
 
@@ -441,8 +510,11 @@ class TestNegativeProcessAll:
         mock_meta.assert_not_called()
 
     def test_lark_reader_failure_propagates(self, monkeypatch):
-        monkeypatch.setattr(processor, "get_new_rows",
-                            MagicMock(side_effect=RuntimeError("Cannot connect to Lark")))
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            MagicMock(side_effect=RuntimeError("Cannot connect to Lark")),
+        )
 
         with pytest.raises(RuntimeError, match="Cannot connect to Lark"):
             processor.process_all()
