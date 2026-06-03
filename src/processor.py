@@ -142,6 +142,46 @@ def _fill_dates_from_same_videos(results: list) -> list:
     return results
 
 
+def _build_browser_data(url, main_ss, thumb_ss, dom_date, dom_vc, dom_cap) -> dict:
+    """Turn raw browser extraction output into a clean data dict."""
+    if thumb_ss is not None:
+        # Instagram: two-screenshot approach
+        reel_data = extract_from_screenshot(main_ss)
+        reel_page_data = extract_from_screenshot(thumb_ss)
+        caption = _clean_caption(dom_cap) if dom_cap else reel_data["caption"]
+        data = {
+            "posted_date": dom_date or reel_data["posted_date"],
+            "caption": caption,
+            "view_count": (
+                dom_vc or reel_page_data["view_count"] or reel_data["view_count"]
+            ),
+        }
+        log.debug(
+            "Instagram — dom_date=%s dom_vc=%s dom_cap=%r vision_cap=%r",
+            dom_date,
+            dom_vc,
+            (dom_cap or "")[:40],
+            reel_data["caption"][:40],
+        )
+    elif dom_cap or dom_date or dom_vc:
+        # TikTok / X — DOM extraction, no screenshots needed
+        data = {
+            "posted_date": dom_date,
+            "caption": _clean_caption(dom_cap) if dom_cap else None,
+            "view_count": dom_vc,
+        }
+        log.debug(
+            "DOM — dom_date=%s dom_vc=%s dom_cap=%r",
+            dom_date,
+            dom_vc,
+            (dom_cap or "")[:40],
+        )
+    else:
+        # RedNote / other Vision-only platforms — single screenshot
+        data = extract_from_screenshot(main_ss)
+    return data
+
+
 def process_all() -> list:
     log.info("Checking Lark for new rows...")
     rows = get_new_rows()
@@ -151,106 +191,143 @@ def process_all() -> list:
         return []
 
     log.info("Found %d new row(s) to process.", len(rows))
-    results = []
 
-    for i, (record_id, url) in enumerate(rows, 1):
-        method = _route(url)
-        log.info("[%d/%d] Platform=%s  URL=%s", i, len(rows), method.upper(), url[:80])
+    ytdlp_rows = [(rid, url) for rid, url in rows if _route(url) == "ytdlp"]
+    browser_rows = [(rid, url) for rid, url in rows if _route(url) != "ytdlp"]
+
+    result_map: dict = {}  # record_id → result entry
+
+    # ── YouTube: parallel subprocess calls ────────────────────────────────────
+    if ytdlp_rows:
+        log.info(
+            "yt-dlp: processing %d URL(s) in parallel (max %d workers)",
+            len(ytdlp_rows),
+            MAX_PARALLEL_YTDLP,
+        )
+        with ThreadPoolExecutor(max_workers=MAX_PARALLEL_YTDLP) as pool:
+            futures = {
+                pool.submit(get_metadata, url): (rid, url) for rid, url in ytdlp_rows
+            }
+            for future in as_completed(futures):
+                rid, url = futures[future]
+                log.info("  yt-dlp URL=%s", url[:80])
+                try:
+                    data = future.result()
+                    if data.get("view_count") == 0:
+                        log.warning(
+                            "  view_count=0 looks wrong — skipping (will retry)"
+                        )
+                        data["view_count"] = None
+                    log.info(
+                        "  Extracted → date=%s  views=%s  caption=%r",
+                        data["posted_date"],
+                        data["view_count"],
+                        (data.get("caption") or "")[:50],
+                    )
+                    write_row(
+                        record_id=rid,
+                        posted_date=data["posted_date"],
+                        caption=data["caption"],
+                        view_count=data["view_count"],
+                    )
+                    log.info("  ✓ Written to Lark (record_id=%s)", rid)
+                    result_map[rid] = {
+                        "url": url,
+                        "record_id": rid,
+                        "status": "ok",
+                        "data": data,
+                    }
+                except Exception as exc:
+                    log.error("  ✗ FAILED for %s — %s", url[:80], exc, exc_info=True)
+                    result_map[rid] = {
+                        "url": url,
+                        "record_id": rid,
+                        "status": "error",
+                        "error": str(exc),
+                    }
+
+    # ── Browser URLs: one Firefox context, up to 3 concurrent pages ───────────
+    if browser_rows:
+        log.info(
+            "Browser: processing %d URL(s) in parallel (max %d concurrent pages)",
+            len(browser_rows),
+            MAX_PARALLEL_BROWSER,
+        )
+        browser_urls = [url for _, url in browser_rows]
+        url_to_rid = {url: rid for rid, url in browser_rows}
 
         try:
-            if method == "ytdlp":
-                log.debug("Using yt-dlp for: %s", url)
-                data = get_metadata(url)
-            else:
-                log.debug("Using Firefox + Vision for: %s", url)
-                main_ss, thumb_ss, dom_date, dom_vc, dom_cap = get_screenshot(url)
-                log.debug(
-                    "Screenshots — main=%d bytes, thumb=%s bytes, dom_date=%s, dom_vc=%s, dom_cap=%r",
-                    len(main_ss),
-                    len(thumb_ss) if thumb_ss else "N/A",
-                    dom_date,
-                    dom_vc,
-                    (dom_cap or "")[:40],
-                )
-
-                if thumb_ss is not None:
-                    # Instagram: DOM caption is most reliable — Vision OCR is fallback only
-                    reel_data = extract_from_screenshot(main_ss)
-                    reel_page_data = extract_from_screenshot(thumb_ss)
-                    caption = (
-                        _clean_caption(dom_cap) if dom_cap else reel_data["caption"]
-                    )
-                    data = {
-                        "posted_date": dom_date or reel_data["posted_date"],
-                        "caption": caption,
-                        "view_count": (
-                            dom_vc
-                            or reel_page_data["view_count"]
-                            or reel_data["view_count"]
-                        ),
-                    }
-                    log.debug(
-                        "Instagram — dom_date=%s dom_vc=%s dom_cap=%r vision_cap=%r",
-                        dom_date,
-                        dom_vc,
-                        (dom_cap or "")[:40],
-                        reel_data["caption"][:40],
-                    )
-                elif dom_cap or dom_date or dom_vc:
-                    # X / platforms with DOM extraction but no dual screenshots
-                    data = {
-                        "posted_date": dom_date,
-                        "caption": _clean_caption(dom_cap) if dom_cap else None,
-                        "view_count": dom_vc,
-                    }
-                    log.debug(
-                        "X/DOM — dom_date=%s dom_vc=%s dom_cap=%r",
-                        dom_date,
-                        dom_vc,
-                        (dom_cap or "")[:40],
-                    )
-                else:
-                    # RedNote / other vision platforms — single screenshot
-                    data = extract_from_screenshot(main_ss)
-
-            log.info(
-                "  Extracted → date=%s  views=%s  caption=%r",
-                data["posted_date"],
-                data["view_count"],
-                data["caption"][:50],
-            )
-
-            # 0 views is never credible — treat as missing so the row stays
-            # unfilled and gets retried in the next cycle.
-            if data.get("view_count") == 0:
-                log.warning(
-                    "  view_count=0 looks wrong — skipping view count (will retry)"
-                )
-                data["view_count"] = None
-
-            write_row(
-                record_id=record_id,
-                posted_date=data["posted_date"],
-                caption=data["caption"],
-                view_count=data["view_count"],
-            )
-
-            log.info("  ✓ Written to Lark (record_id=%s)", record_id)
-            # Include record_id so _fill_dates_from_same_videos can re-write if needed
-            results.append(
-                {"url": url, "record_id": record_id, "status": "ok", "data": data}
-            )
-
+            batch = get_screenshots_batch(browser_urls)
         except Exception as exc:
-            log.error("  ✗ FAILED for %s — %s", url[:80], exc, exc_info=True)
-            results.append(
-                {
+            log.error("Browser batch launch failed: %s", exc, exc_info=True)
+            for rid, url in browser_rows:
+                result_map[rid] = {
                     "url": url,
-                    "record_id": record_id,
+                    "record_id": rid,
                     "status": "error",
                     "error": str(exc),
                 }
+            batch = {}
+
+        for url, result in batch.items():
+            rid = url_to_rid[url]
+            log.info("  Browser URL=%s", url[:80])
+            if isinstance(result, Exception):
+                log.error("  ✗ FAILED for %s — %s", url[:80], result)
+                result_map[rid] = {
+                    "url": url,
+                    "record_id": rid,
+                    "status": "error",
+                    "error": str(result),
+                }
+                continue
+
+            main_ss, thumb_ss, dom_date, dom_vc, dom_cap = result
+            log.debug(
+                "Screenshots — main=%d bytes, thumb=%s bytes, dom_date=%s, dom_vc=%s, dom_cap=%r",
+                len(main_ss),
+                len(thumb_ss) if thumb_ss else "N/A",
+                dom_date,
+                dom_vc,
+                (dom_cap or "")[:40],
             )
+            try:
+                data = _build_browser_data(
+                    url, main_ss, thumb_ss, dom_date, dom_vc, dom_cap
+                )
+                if data.get("view_count") == 0:
+                    log.warning("  view_count=0 looks wrong — skipping (will retry)")
+                    data["view_count"] = None
+                log.info(
+                    "  Extracted → date=%s  views=%s  caption=%r",
+                    data.get("posted_date"),
+                    data.get("view_count"),
+                    (data.get("caption") or "")[:50],
+                )
+                write_row(
+                    record_id=rid,
+                    posted_date=data.get("posted_date"),
+                    caption=data.get("caption"),
+                    view_count=data.get("view_count"),
+                )
+                log.info("  ✓ Written to Lark (record_id=%s)", rid)
+                result_map[rid] = {
+                    "url": url,
+                    "record_id": rid,
+                    "status": "ok",
+                    "data": data,
+                }
+            except Exception as exc:
+                log.error("  ✗ FAILED for %s — %s", url[:80], exc, exc_info=True)
+                result_map[rid] = {
+                    "url": url,
+                    "record_id": rid,
+                    "status": "error",
+                    "error": str(exc),
+                }
+
+    # Rebuild in original row order
+    results = [result_map[rid] for rid, _url in rows if rid in result_map]
 
     # Cross-platform date fill: copy YouTube date to Instagram if same video
     results = _fill_dates_from_same_videos(results)
