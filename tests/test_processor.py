@@ -116,8 +116,10 @@ class TestProcessAll:
         fake_reel_page_ss = b"reel_page"  # thumb_ss → reel page screenshot
         monkeypatch.setattr(
             processor,
-            "get_screenshot",
-            MagicMock(return_value=(fake_reel_ss, fake_reel_page_ss, None, None, None)),
+            "get_screenshots_batch",
+            lambda urls: {
+                url: (fake_reel_ss, fake_reel_page_ss, None, None, None) for url in urls
+            },
         )
 
         split_data = {
