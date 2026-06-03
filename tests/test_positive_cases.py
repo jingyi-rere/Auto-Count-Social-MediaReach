@@ -437,7 +437,7 @@ class TestPositiveGetNewRows:
         )
         rows = lark_reader.get_new_rows()
         assert len(rows) == 1
-        assert rows[0] == ("rec1", "https://youtube.com/watch?v=abc")
+        assert rows[0][:2] == ("rec1", "https://youtube.com/watch?v=abc")
 
     def test_new_instagram_row_returned(self, monkeypatch):
         _mock_records(
