@@ -100,6 +100,7 @@ class TestProcessAll:
             posted_date="2024-03-15",
             caption="Test video",
             view_count=1000,
+            content_type="",
         )
 
     def test_instagram_uses_both_screenshots(self, monkeypatch):
