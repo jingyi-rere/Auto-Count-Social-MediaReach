@@ -153,6 +153,7 @@ class TestProcessAll:
             posted_date="2024-03-15",
             caption="Good caption",
             view_count=21600,
+            content_type="",
         )
 
     def test_no_new_rows_returns_empty(self, monkeypatch):
