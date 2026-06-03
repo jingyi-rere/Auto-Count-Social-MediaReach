@@ -183,7 +183,9 @@ class TestProcessAll:
             return {"posted_date": "2024-01-01", "caption": "Good", "view_count": 100}
 
         monkeypatch.setattr(processor, "get_metadata", mock_metadata)
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
         monkeypatch.setattr(processor, "write_row", MagicMock())
 
         results = processor.process_all()
