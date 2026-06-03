@@ -460,7 +460,9 @@ class TestNegativeProcessAll:
 
         monkeypatch.setattr(processor, "get_metadata", mock_metadata)
         monkeypatch.setattr(processor, "write_row", MagicMock())
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         results = processor.process_all()
         assert call_count == 2
@@ -475,8 +477,8 @@ class TestNegativeProcessAll:
         )
         monkeypatch.setattr(
             processor,
-            "get_screenshot",
-            MagicMock(side_effect=Exception("Firefox crashed")),
+            "get_screenshots_batch",
+            lambda urls: {url: Exception("Firefox crashed") for url in urls},
         )
         monkeypatch.setattr(processor, "write_row", MagicMock())
         monkeypatch.setattr(processor, "get_metadata", MagicMock())
@@ -499,7 +501,9 @@ class TestNegativeProcessAll:
             processor, "get_metadata", MagicMock(side_effect=RuntimeError("timeout"))
         )
         monkeypatch.setattr(processor, "write_row", MagicMock())
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         results = processor.process_all()
         assert len(results) == 3
