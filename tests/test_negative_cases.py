@@ -404,7 +404,9 @@ class TestNegativeProcessAll:
             MagicMock(side_effect=RuntimeError("yt-dlp failed")),
         )
         monkeypatch.setattr(processor, "write_row", MagicMock())
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         results = processor.process_all()
         assert results[0]["status"] == "error"
