@@ -9,22 +9,23 @@ In plain English: these tests check that
 - Very long or weird URLs don't crash the system
 - The system keeps running even when multiple things go wrong
 """
+
 import os
 import io
 import pytest
 from unittest.mock import MagicMock
 from PIL import Image
 
-os.environ.setdefault("LARK_APP_ID",       "test_id")
-os.environ.setdefault("LARK_APP_SECRET",   "test_secret")
-os.environ.setdefault("LARK_APP_TOKEN",    "test_token")
-os.environ.setdefault("LARK_TABLE_ID",     "test_table")
+os.environ.setdefault("LARK_APP_ID", "test_id")
+os.environ.setdefault("LARK_APP_SECRET", "test_secret")
+os.environ.setdefault("LARK_APP_TOKEN", "test_token")
+os.environ.setdefault("LARK_TABLE_ID", "test_table")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test_key")
 
-from src.lark_writer    import write_row, _to_lark_timestamp
-from src.lark_reader    import _extract_url
+from src.lark_writer import write_row, _to_lark_timestamp
+from src.lark_reader import _extract_url
 from src.vision_extract import _clean_caption, _compress_image
-from src.processor      import _route
+from src.processor import _route
 from src import processor, lark_writer, vision_extract
 
 
@@ -39,6 +40,7 @@ def _fake_png(size=100):
 # STRESS-1: Many URLs pasted at once
 # ══════════════════════════════════════════════════════════════
 
+
 class TestManyUrlsAtOnce:
     """
     Plain English: What if you paste 20 or 50 URLs into Lark all at once?
@@ -50,15 +52,29 @@ class TestManyUrlsAtOnce:
         Plain English: 20 URLs at once — the maximum you'd realistically
         ever paste — should all be processed successfully.
         """
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            (f"rec{i}", f"https://www.youtube.com/watch?v=video{i:03d}")
-            for i in range(20)
-        ])
-        monkeypatch.setattr(processor, "get_metadata", MagicMock(return_value={
-            "posted_date": "2024-03-15", "caption": "Test", "view_count": 100
-        }))
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [
+                (f"rec{i}", f"https://www.youtube.com/watch?v=video{i:03d}")
+                for i in range(20)
+            ],
+        )
+        monkeypatch.setattr(
+            processor,
+            "get_metadata",
+            MagicMock(
+                return_value={
+                    "posted_date": "2024-03-15",
+                    "caption": "Test",
+                    "view_count": 100,
+                }
+            ),
+        )
         monkeypatch.setattr(processor, "write_row", MagicMock())
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         results = processor.process_all()
         assert len(results) == 20, f"Expected 20 results, got {len(results)}"
@@ -69,15 +85,29 @@ class TestManyUrlsAtOnce:
         Plain English: Even 50 URLs — a very extreme case —
         should not crash the system. It just takes longer.
         """
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            (f"rec{i}", f"https://www.youtube.com/watch?v=video{i:03d}")
-            for i in range(50)
-        ])
-        monkeypatch.setattr(processor, "get_metadata", MagicMock(return_value={
-            "posted_date": "2024-01-01", "caption": "Test", "view_count": 50
-        }))
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [
+                (f"rec{i}", f"https://www.youtube.com/watch?v=video{i:03d}")
+                for i in range(50)
+            ],
+        )
+        monkeypatch.setattr(
+            processor,
+            "get_metadata",
+            MagicMock(
+                return_value={
+                    "posted_date": "2024-01-01",
+                    "caption": "Test",
+                    "view_count": 50,
+                }
+            ),
+        )
         monkeypatch.setattr(processor, "write_row", MagicMock())
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         results = processor.process_all()
         assert len(results) == 50
@@ -91,22 +121,35 @@ class TestManyUrlsAtOnce:
         all pasted at the same time — should all be handled correctly.
         """
         mixed_urls = [
-            ("rec1",  "https://www.youtube.com/watch?v=yt1"),
-            ("rec2",  "https://www.instagram.com/reel/ig1/"),
-            ("rec3",  "https://www.tiktok.com/@user/video/tt1"),
-            ("rec4",  "https://www.xiaohongshu.com/explore/rn1"),
-            ("rec5",  "https://www.youtube.com/watch?v=yt2"),
-            ("rec6",  "https://www.instagram.com/reel/ig2/"),
+            ("rec1", "https://www.youtube.com/watch?v=yt1"),
+            ("rec2", "https://www.instagram.com/reel/ig1/"),
+            ("rec3", "https://www.tiktok.com/@user/video/tt1"),
+            ("rec4", "https://www.xiaohongshu.com/explore/rn1"),
+            ("rec5", "https://www.youtube.com/watch?v=yt2"),
+            ("rec6", "https://www.instagram.com/reel/ig2/"),
         ]
         monkeypatch.setattr(processor, "get_new_rows", lambda: mixed_urls)
-        monkeypatch.setattr(processor, "get_metadata", MagicMock(return_value={
-            "posted_date": "2024-01-01", "caption": "Test", "view_count": 100
-        }))
-        monkeypatch.setattr(processor, "get_screenshot",
-                            MagicMock(return_value=(b"reel", b"grid")))
+        monkeypatch.setattr(
+            processor,
+            "get_metadata",
+            MagicMock(
+                return_value={
+                    "posted_date": "2024-01-01",
+                    "caption": "Test",
+                    "view_count": 100,
+                }
+            ),
+        )
+        monkeypatch.setattr(
+            processor, "get_screenshot", MagicMock(return_value=(b"reel", b"grid"))
+        )
 
         def mock_extract(ss, prompt=None):
-            return {"posted_date": "2024-01-01", "caption": "Caption", "view_count": 200}
+            return {
+                "posted_date": "2024-01-01",
+                "caption": "Caption",
+                "view_count": 200,
+            }
 
         monkeypatch.setattr(processor, "extract_from_screenshot", mock_extract)
         monkeypatch.setattr(processor, "write_row", MagicMock())
@@ -118,6 +161,7 @@ class TestManyUrlsAtOnce:
 # ══════════════════════════════════════════════════════════════
 # STRESS-2: Same URL pasted twice (duplicate handling)
 # ══════════════════════════════════════════════════════════════
+
 
 class TestDuplicateUrls:
     """
@@ -132,16 +176,30 @@ class TestDuplicateUrls:
         They are separate rows in Lark, so both need data filled in.
         """
         same_url = "https://www.youtube.com/watch?v=same_video"
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            ("rec1", same_url),
-            ("rec2", same_url),  # same URL, different record
-        ])
-        monkeypatch.setattr(processor, "get_metadata", MagicMock(return_value={
-            "posted_date": "2024-01-01", "caption": "Same video", "view_count": 999
-        }))
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [
+                ("rec1", same_url),
+                ("rec2", same_url),  # same URL, different record
+            ],
+        )
+        monkeypatch.setattr(
+            processor,
+            "get_metadata",
+            MagicMock(
+                return_value={
+                    "posted_date": "2024-01-01",
+                    "caption": "Same video",
+                    "view_count": 999,
+                }
+            ),
+        )
         mock_write = MagicMock()
         monkeypatch.setattr(processor, "write_row", mock_write)
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         results = processor.process_all()
         assert len(results) == 2
@@ -150,14 +208,24 @@ class TestDuplicateUrls:
     def test_same_url_five_times_no_crash(self, monkeypatch):
         """Plain English: Even 5 duplicates shouldn't cause any crash."""
         same_url = "https://www.youtube.com/watch?v=repeated"
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            (f"rec{i}", same_url) for i in range(5)
-        ])
-        monkeypatch.setattr(processor, "get_metadata", MagicMock(return_value={
-            "posted_date": "2024-01-01", "caption": "Test", "view_count": 100
-        }))
+        monkeypatch.setattr(
+            processor, "get_new_rows", lambda: [(f"rec{i}", same_url) for i in range(5)]
+        )
+        monkeypatch.setattr(
+            processor,
+            "get_metadata",
+            MagicMock(
+                return_value={
+                    "posted_date": "2024-01-01",
+                    "caption": "Test",
+                    "view_count": 100,
+                }
+            ),
+        )
         monkeypatch.setattr(processor, "write_row", MagicMock())
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         results = processor.process_all()
         assert len(results) == 5
@@ -166,6 +234,7 @@ class TestDuplicateUrls:
 # ══════════════════════════════════════════════════════════════
 # STRESS-3: Weird and extreme inputs
 # ══════════════════════════════════════════════════════════════
+
 
 class TestWeirdInputs:
     """
@@ -197,7 +266,9 @@ class TestWeirdInputs:
 
     def test_url_with_very_long_query_string(self):
         """Plain English: A very long URL should not crash URL extraction."""
-        long_url = "https://youtube.com/watch?v=abc&" + "&".join([f"param{i}=value{i}" for i in range(50)])
+        long_url = "https://youtube.com/watch?v=abc&" + "&".join(
+            [f"param{i}=value{i}" for i in range(50)]
+        )
         result = _extract_url(long_url)
         assert result == long_url
 
@@ -218,9 +289,9 @@ class TestWeirdInputs:
         ]
         for date in unusual_dates:
             result = _to_lark_timestamp(date)
-            assert result is None or isinstance(result, int), (
-                f"Date '{date}' caused unexpected result: {result}"
-            )
+            assert result is None or isinstance(
+                result, int
+            ), f"Date '{date}' caused unexpected result: {result}"
 
     def test_caption_in_arabic_script(self):
         """Plain English: Arabic text captions should work fine."""
@@ -238,6 +309,7 @@ class TestWeirdInputs:
 # STRESS-4: Many failures in a row — system keeps running
 # ══════════════════════════════════════════════════════════════
 
+
 class TestSystemStaysUpAfterFailures:
     """
     Plain English: Even if many URLs in a row all fail (bad internet,
@@ -249,14 +321,23 @@ class TestSystemStaysUpAfterFailures:
         Plain English: If 10 videos all fail (e.g. internet is bad),
         all 10 errors should be recorded and the system shouldn't crash.
         """
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            (f"rec{i}", f"https://www.youtube.com/watch?v=fail{i}")
-            for i in range(10)
-        ])
-        monkeypatch.setattr(processor, "get_metadata",
-                            MagicMock(side_effect=RuntimeError("Network timeout")))
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [
+                (f"rec{i}", f"https://www.youtube.com/watch?v=fail{i}")
+                for i in range(10)
+            ],
+        )
+        monkeypatch.setattr(
+            processor,
+            "get_metadata",
+            MagicMock(side_effect=RuntimeError("Network timeout")),
+        )
         monkeypatch.setattr(processor, "write_row", MagicMock())
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         results = processor.process_all()
         assert len(results) == 10, "All 10 failures should be recorded"
@@ -267,11 +348,16 @@ class TestSystemStaysUpAfterFailures:
         Plain English: If every other video fails, the successful ones
         should still be processed correctly.
         """
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            (f"rec{i}", f"https://www.youtube.com/watch?v=video{i}")
-            for i in range(6)
-        ])
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [
+                (f"rec{i}", f"https://www.youtube.com/watch?v=video{i}")
+                for i in range(6)
+            ],
+        )
         call_n = {"n": 0}
+
         def alternating_metadata(url):
             call_n["n"] += 1
             if call_n["n"] % 2 == 0:
@@ -280,11 +366,13 @@ class TestSystemStaysUpAfterFailures:
 
         monkeypatch.setattr(processor, "get_metadata", alternating_metadata)
         monkeypatch.setattr(processor, "write_row", MagicMock())
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         results = processor.process_all()
         assert len(results) == 6
-        ok_count    = sum(1 for r in results if r["status"] == "ok")
+        ok_count = sum(1 for r in results if r["status"] == "ok")
         error_count = sum(1 for r in results if r["status"] == "error")
         assert ok_count == 3
         assert error_count == 3
@@ -308,6 +396,6 @@ class TestSystemStaysUpAfterFailures:
         ]
         for text in extreme_inputs:
             result = _clean_caption(text)
-            assert isinstance(result, str), (
-                f"_clean_caption crashed or returned non-string for input: {repr(text)[:50]}"
-            )
+            assert isinstance(
+                result, str
+            ), f"_clean_caption crashed or returned non-string for input: {repr(text)[:50]}"
