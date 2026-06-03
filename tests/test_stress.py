@@ -141,7 +141,11 @@ class TestManyUrlsAtOnce:
             ),
         )
         monkeypatch.setattr(
-            processor, "get_screenshot", MagicMock(return_value=(b"reel", b"grid"))
+            processor,
+            "get_screenshots_batch",
+            lambda urls: {
+                url: (b"reel_ss", b"grid_ss", None, None, None) for url in urls
+            },
         )
 
         def mock_extract(ss, prompt=None):
