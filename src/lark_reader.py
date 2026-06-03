@@ -130,7 +130,10 @@ def get_new_rows() -> list:
             already_has_views = bool(fields.get(FIELD_VIEWS))
             if already_has_date and already_has_views:
                 continue
-            rows.append((record.record_id, url))
+            # Read existing content type — so processor can decide whether to overwrite
+            existing_ct_raw = fields.get(FIELD_CONTENT_TYPE, "")
+            existing_ct = str(existing_ct_raw).strip() if existing_ct_raw else ""
+            rows.append((record.record_id, url, existing_ct))
         if not data.has_more:
             break
         page_token = data.page_token
