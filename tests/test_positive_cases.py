@@ -533,7 +533,9 @@ class TestPositiveProcessAll:
         )
         mock_write = MagicMock()
         monkeypatch.setattr(processor, "write_row", mock_write)
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         results = processor.process_all()
         assert len(results) == 1
@@ -607,7 +609,9 @@ class TestPositiveProcessAll:
             ),
         )
         monkeypatch.setattr(processor, "write_row", MagicMock())
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         results = processor.process_all()
         assert len(results) == 3
