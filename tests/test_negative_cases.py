@@ -432,7 +432,9 @@ class TestNegativeProcessAll:
         monkeypatch.setattr(
             processor, "write_row", MagicMock(side_effect=RuntimeError("Lark API down"))
         )
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         results = processor.process_all()
         assert results[0]["status"] == "error"
