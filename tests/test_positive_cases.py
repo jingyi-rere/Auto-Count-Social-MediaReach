@@ -553,10 +553,11 @@ class TestPositiveProcessAll:
         fake_reel_page_ss = b"reel_page"
         monkeypatch.setattr(
             processor,
-            "get_screenshot",
-            MagicMock(
-                return_value=(fake_split_ss, fake_reel_page_ss, None, None, None)
-            ),
+            "get_screenshots_batch",
+            lambda urls: {
+                url: (fake_split_ss, fake_reel_page_ss, None, None, None)
+                for url in urls
+            },
         )
 
         def mock_extract(ss, prompt=None):
