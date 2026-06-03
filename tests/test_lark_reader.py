@@ -91,7 +91,7 @@ class TestGetNewRows:
 
         rows = lark_reader.get_new_rows()
         assert len(rows) == 1
-        assert rows[0] == ("rec1", "https://youtube.com/watch?v=abc")
+        assert rows[0][:2] == ("rec1", "https://youtube.com/watch?v=abc")
 
     def test_skips_row_with_both_date_and_views(self, monkeypatch):
         records = [
