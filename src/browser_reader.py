@@ -732,3 +732,98 @@ async def _take_screenshot(url: str):
 def get_screenshot(url: str):
     """Returns (main_screenshot, thumb_screenshot_or_None, dom_date_or_None, dom_view_count_or_None, dom_caption_or_None)."""
     return asyncio.run(_take_screenshot(url))
+
+
+# ── Parallel batch API ─────────────────────────────────────────────────────────
+
+
+async def _process_one_url(ctx, semaphore: asyncio.Semaphore, url: str):
+    """Acquire semaphore, open a fresh page, process URL, close page."""
+    async with semaphore:
+        page = await ctx.new_page()
+        try:
+            if "instagram.com" in url:
+                post_ss, thumb_ss, sc, dom_date, dom_vc, dom_cap = (
+                    await _get_instagram_data(page, url)
+                )
+                return url, (post_ss, thumb_ss, dom_date, dom_vc, dom_cap), None
+            elif "x.com" in url or "twitter.com" in url:
+                result = await _get_x_data(page, url)
+                return url, result, None
+            elif "tiktok.com" in url:
+                result = await _get_tiktok_data(page, url)
+                return url, result, None
+            else:
+                ss = await _screenshot_url(page, url)
+                return url, (ss, None, None, None, None), None
+        except Exception as exc:
+            log.error("Batch: error processing %s — %s", url[:80], exc, exc_info=True)
+            return url, None, exc
+        finally:
+            await page.close()
+
+
+async def _take_screenshots_batch(urls: list) -> dict:
+    """
+    Open ONE persistent Firefox context and process all URLs with limited concurrency.
+    Returns {url: (main_ss, thumb_ss, dom_date, dom_vc, dom_cap)} or {url: Exception}.
+
+    MAX_CONCURRENT = 3 — balances speed vs Instagram bot-detection risk.
+    One context avoids the Firefox profile lock problem entirely.
+    """
+    if not urls:
+        return {}
+
+    _release_firefox_lock()
+    import subprocess as _sp
+
+    _prev = _sp.run(
+        [
+            "osascript",
+            "-e",
+            'tell application "System Events" to get name of first process whose frontmost is true',
+        ],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    MAX_CONCURRENT = 3
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+    output = {}
+
+    async with async_playwright() as p:
+        ctx = await p.firefox.launch_persistent_context(
+            str(FIREFOX_PROFILE_DIR),
+            headless=False,
+            viewport={"width": 1280, "height": 900},
+        )
+        if _prev and _prev.lower() != "firefox":
+            _sp.Popen(
+                ["osascript", "-e", f'tell application "{_prev}" to activate'],
+                stdout=_sp.DEVNULL,
+                stderr=_sp.DEVNULL,
+            )
+
+        tasks = [_process_one_url(ctx, semaphore, url) for url in urls]
+        task_results = await asyncio.gather(*tasks)
+
+        for url, data, exc in task_results:
+            output[url] = exc if exc is not None else data
+
+        await ctx.close()
+
+    return output
+
+
+def get_screenshots_batch(urls: list) -> dict:
+    """
+    Parallel batch version of get_screenshot.
+
+    Opens ONE Firefox context and processes all URLs with up to 3 concurrent pages.
+    Returns {url: (main_ss, thumb_ss, dom_date, dom_vc, dom_cap)} or {url: Exception}.
+
+    Speedup vs sequential: ~3× for a typical mixed batch (3 concurrent pages).
+    """
+    if not urls:
+        return {}
+    return asyncio.run(_take_screenshots_batch(urls))
