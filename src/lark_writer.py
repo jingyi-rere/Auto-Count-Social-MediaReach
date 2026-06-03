@@ -141,8 +141,10 @@ def write_row(
     # Column D — Caption text
     fields[FIELD_CAPTION] = caption
 
-    # Column E — Content type (hardcoded for all rows)
-    fields[FIELD_CONTENT_TYPE] = "Content Casual"
+    # Column E — Content type: only fill if user hasn't already set it
+    if not content_type:
+        fields[FIELD_CONTENT_TYPE] = "Content Casual"
+    # else: user already filled Column E — don't touch it
 
     # Column G — View count (number)
     if view_count is not None:
