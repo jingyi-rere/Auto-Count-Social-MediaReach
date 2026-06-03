@@ -192,8 +192,12 @@ def process_all() -> list:
 
     log.info("Found %d new row(s) to process.", len(rows))
 
-    ytdlp_rows = [(rid, url) for rid, url in rows if _route(url) == "ytdlp"]
-    browser_rows = [(rid, url) for rid, url in rows if _route(url) != "ytdlp"]
+    # Normalize rows to 3-tuples (record_id, url, existing_content_type).
+    # Test mocks may return 2-tuples — the third element defaults to "" in that case.
+    rows_n = [(row[0], row[1], row[2] if len(row) > 2 else "") for row in rows]
+
+    ytdlp_rows = [(rid, url, ct) for rid, url, ct in rows_n if _route(url) == "ytdlp"]
+    browser_rows = [(rid, url, ct) for rid, url, ct in rows_n if _route(url) != "ytdlp"]
 
     result_map: dict = {}  # record_id → result entry
 
@@ -206,10 +210,11 @@ def process_all() -> list:
         )
         with ThreadPoolExecutor(max_workers=MAX_PARALLEL_YTDLP) as pool:
             futures = {
-                pool.submit(get_metadata, url): (rid, url) for rid, url in ytdlp_rows
+                pool.submit(get_metadata, url): (rid, url, ct)
+                for rid, url, ct in ytdlp_rows
             }
             for future in as_completed(futures):
-                rid, url = futures[future]
+                rid, url, ct = futures[future]
                 log.info("  yt-dlp URL=%s", url[:80])
                 try:
                     data = future.result()
@@ -229,6 +234,7 @@ def process_all() -> list:
                         posted_date=data["posted_date"],
                         caption=data["caption"],
                         view_count=data["view_count"],
+                        content_type=ct,
                     )
                     log.info("  ✓ Written to Lark (record_id=%s)", rid)
                     result_map[rid] = {
@@ -253,19 +259,19 @@ def process_all() -> list:
             len(browser_rows),
             MAX_PARALLEL_BROWSER,
         )
-        # Build url→[list of rids] so duplicate URLs (same video pasted twice) both get written
         from collections import defaultdict as _defaultdict
 
-        url_to_rids: dict = _defaultdict(list)
-        for rid, url in browser_rows:
-            url_to_rids[url].append(rid)
-        unique_urls = list(url_to_rids.keys())
+        # url → [(rid, existing_ct), ...]  — preserves per-row content type
+        url_to_rows: dict = _defaultdict(list)
+        for rid, url, ct in browser_rows:
+            url_to_rows[url].append((rid, ct))
+        unique_urls = list(url_to_rows.keys())
 
         try:
             batch = get_screenshots_batch(unique_urls)
         except Exception as exc:
             log.error("Browser batch launch failed: %s", exc, exc_info=True)
-            for rid, url in browser_rows:
+            for rid, url, _ct in browser_rows:
                 result_map[rid] = {
                     "url": url,
                     "record_id": rid,
@@ -275,11 +281,12 @@ def process_all() -> list:
             batch = {}
 
         for url, result in batch.items():
-            rids = url_to_rids[url]
-            log.info("  Browser URL=%s (%d row(s))", url[:80], len(rids))
+            row_entries = url_to_rows[url]  # [(rid, ct), ...]
+            log.info("  Browser URL=%s (%d row(s))", url[:80], len(row_entries))
+
             if isinstance(result, Exception):
                 log.error("  ✗ FAILED for %s — %s", url[:80], result)
-                for rid in rids:
+                for rid, _ct in row_entries:
                     result_map[rid] = {
                         "url": url,
                         "record_id": rid,
@@ -310,31 +317,62 @@ def process_all() -> list:
                     data.get("view_count"),
                     (data.get("caption") or "")[:50],
                 )
-                for rid in rids:
-                    write_row(
-                        record_id=rid,
-                        posted_date=data.get("posted_date"),
-                        caption=data.get("caption"),
-                        view_count=data.get("view_count"),
-                    )
-                    log.info("  ✓ Written to Lark (record_id=%s)", rid)
+
+                for i, (rid, ct) in enumerate(row_entries):
+                    if i == 0:
+                        # First row: write real extracted data
+                        write_row(
+                            record_id=rid,
+                            posted_date=data.get("posted_date"),
+                            caption=data.get("caption"),
+                            view_count=data.get("view_count"),
+                            content_type=ct,
+                        )
+                        log.info("  ✓ Written to Lark (record_id=%s)", rid)
+                        result_map[rid] = {
+                            "url": url,
+                            "record_id": rid,
+                            "status": "ok",
+                            "data": data,
+                        }
+                    else:
+                        # Duplicate rows: mark clearly, skip views
+                        log.info(
+                            "  ↩ Duplicate URL — writing 'Duplicate link' (record_id=%s)",
+                            rid,
+                        )
+                        write_row(
+                            record_id=rid,
+                            posted_date=None,
+                            caption="Duplicate link",
+                            view_count=None,
+                            content_type=ct,
+                        )
+                        log.info("  ✓ Written to Lark (record_id=%s)", rid)
+                        dup_data = {
+                            "caption": "Duplicate link",
+                            "posted_date": None,
+                            "view_count": None,
+                        }
+                        result_map[rid] = {
+                            "url": url,
+                            "record_id": rid,
+                            "status": "ok",
+                            "data": dup_data,
+                        }
+
+            except Exception as exc:
+                log.error("  ✗ FAILED for %s — %s", url[:80], exc, exc_info=True)
+                for rid, _ct in row_entries:
                     result_map[rid] = {
                         "url": url,
                         "record_id": rid,
-                        "status": "ok",
-                        "data": data,
+                        "status": "error",
+                        "error": str(exc),
                     }
-            except Exception as exc:
-                log.error("  ✗ FAILED for %s — %s", url[:80], exc, exc_info=True)
-                result_map[rid] = {
-                    "url": url,
-                    "record_id": rid,
-                    "status": "error",
-                    "error": str(exc),
-                }
 
     # Rebuild in original row order
-    results = [result_map[rid] for rid, _url in rows if rid in result_map]
+    results = [result_map[row[0]] for row in rows_n if row[0] in result_map]
 
     # Cross-platform date fill: copy YouTube date to Instagram if same video
     results = _fill_dates_from_same_videos(results)
