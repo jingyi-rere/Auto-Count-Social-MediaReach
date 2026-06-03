@@ -16,6 +16,10 @@ from src.logger import get_logger
 
 log = get_logger("processor")
 
+MAX_PARALLEL_YTDLP = 5  # yt-dlp is subprocess — safe to run many in parallel
+MAX_PARALLEL_BROWSER = (
+    3  # browser pages share one Firefox context; 3 = safe for Instagram
+)
 
 # Platforms handled by yt-dlp
 YTDLP_PLATFORMS = ("youtube.com", "youtu.be")
