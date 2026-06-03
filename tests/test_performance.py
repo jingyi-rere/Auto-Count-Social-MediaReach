@@ -12,6 +12,7 @@ NOTE: These tests don't use the real internet — they're mocked.
 Real Instagram/YouTube calls will naturally be slower (10-30 sec each).
 That's expected and fine for your use case (5 URLs per week).
 """
+
 import os
 import io
 import time
@@ -19,16 +20,16 @@ import pytest
 from unittest.mock import MagicMock
 from PIL import Image
 
-os.environ.setdefault("LARK_APP_ID",       "test_id")
-os.environ.setdefault("LARK_APP_SECRET",   "test_secret")
-os.environ.setdefault("LARK_APP_TOKEN",    "test_token")
-os.environ.setdefault("LARK_TABLE_ID",     "test_table")
+os.environ.setdefault("LARK_APP_ID", "test_id")
+os.environ.setdefault("LARK_APP_SECRET", "test_secret")
+os.environ.setdefault("LARK_APP_TOKEN", "test_token")
+os.environ.setdefault("LARK_TABLE_ID", "test_table")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test_key")
 
-from src.lark_writer    import _to_lark_timestamp, write_row
-from src.lark_reader    import _extract_url
+from src.lark_writer import _to_lark_timestamp, write_row
+from src.lark_reader import _extract_url
 from src.vision_extract import _clean_caption, _compress_image
-from src.processor      import _route
+from src.processor import _route
 from src import lark_writer, vision_extract, processor, lark_reader
 
 
@@ -42,6 +43,7 @@ def _fake_png(size=200):
 # ══════════════════════════════════════════════════════════════
 # PERFORMANCE-1: Individual functions are fast
 # ══════════════════════════════════════════════════════════════
+
 
 class TestFunctionSpeed:
     """
@@ -73,9 +75,9 @@ class TestFunctionSpeed:
         for _ in range(1000):
             _extract_url(field)
         elapsed = time.time() - start
-        assert elapsed < 1.0, (
-            f"URL extraction is too slow! Took {elapsed:.2f}s for 1000 runs."
-        )
+        assert (
+            elapsed < 1.0
+        ), f"URL extraction is too slow! Took {elapsed:.2f}s for 1000 runs."
 
     def test_date_conversion_is_instant(self):
         """
@@ -86,9 +88,9 @@ class TestFunctionSpeed:
         for _ in range(500):
             _to_lark_timestamp("2024-03-15")
         elapsed = time.time() - start
-        assert elapsed < 2.0, (
-            f"Date conversion is too slow! Took {elapsed:.2f}s for 500 runs."
-        )
+        assert (
+            elapsed < 2.0
+        ), f"Date conversion is too slow! Took {elapsed:.2f}s for 500 runs."
 
     def test_url_routing_is_instant(self):
         """
@@ -105,14 +107,15 @@ class TestFunctionSpeed:
             for url in urls:
                 _route(url)
         elapsed = time.time() - start
-        assert elapsed < 1.0, (
-            f"URL routing is too slow! Took {elapsed:.2f}s for 3000 routing decisions."
-        )
+        assert (
+            elapsed < 1.0
+        ), f"URL routing is too slow! Took {elapsed:.2f}s for 3000 routing decisions."
 
 
 # ══════════════════════════════════════════════════════════════
 # PERFORMANCE-2: A week's worth of videos processes in reasonable time
 # ══════════════════════════════════════════════════════════════
+
 
 class TestWeeklyWorkload:
     """
@@ -126,15 +129,29 @@ class TestWeeklyWorkload:
         Plain English: Processing a typical week of 5 YouTube videos
         (mocked, no real internet) should finish in under 2 seconds.
         """
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            (f"rec{i}", f"https://www.youtube.com/watch?v=video{i}")
-            for i in range(5)
-        ])
-        monkeypatch.setattr(processor, "get_metadata", MagicMock(return_value={
-            "posted_date": "2024-03-15", "caption": "Test video", "view_count": 1000
-        }))
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [
+                (f"rec{i}", f"https://www.youtube.com/watch?v=video{i}")
+                for i in range(5)
+            ],
+        )
+        monkeypatch.setattr(
+            processor,
+            "get_metadata",
+            MagicMock(
+                return_value={
+                    "posted_date": "2024-03-15",
+                    "caption": "Test video",
+                    "view_count": 1000,
+                }
+            ),
+        )
         monkeypatch.setattr(processor, "write_row", MagicMock())
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         start = time.time()
         results = processor.process_all()
@@ -152,24 +169,38 @@ class TestWeeklyWorkload:
         Plain English: Even on a very busy week with 15 videos,
         the system should still process all of them without hanging.
         """
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [
-            (f"rec{i}", f"https://www.youtube.com/watch?v=video{i}")
-            for i in range(15)
-        ])
-        monkeypatch.setattr(processor, "get_metadata", MagicMock(return_value={
-            "posted_date": "2024-03-15", "caption": "Test video", "view_count": 1000
-        }))
+        monkeypatch.setattr(
+            processor,
+            "get_new_rows",
+            lambda: [
+                (f"rec{i}", f"https://www.youtube.com/watch?v=video{i}")
+                for i in range(15)
+            ],
+        )
+        monkeypatch.setattr(
+            processor,
+            "get_metadata",
+            MagicMock(
+                return_value={
+                    "posted_date": "2024-03-15",
+                    "caption": "Test video",
+                    "view_count": 1000,
+                }
+            ),
+        )
         monkeypatch.setattr(processor, "write_row", MagicMock())
-        monkeypatch.setattr(processor, "get_screenshot", MagicMock())
+        monkeypatch.setattr(
+            processor, "get_screenshots_batch", MagicMock(return_value={})
+        )
 
         start = time.time()
         results = processor.process_all()
         elapsed = time.time() - start
 
         assert len(results) == 15
-        assert elapsed < 5.0, (
-            f"Processing 15 videos took {elapsed:.2f}s — too slow for a busy week!"
-        )
+        assert (
+            elapsed < 5.0
+        ), f"Processing 15 videos took {elapsed:.2f}s — too slow for a busy week!"
 
     def test_lark_is_only_checked_once_per_cycle(self, monkeypatch):
         """
@@ -178,20 +209,22 @@ class TestWeeklyWorkload:
         Asking too many times wastes your API calls.
         """
         call_count = {"n": 0}
+
         def mock_get_rows():
             call_count["n"] += 1
             return []
 
         monkeypatch.setattr(processor, "get_new_rows", mock_get_rows)
         processor.process_all()
-        assert call_count["n"] == 1, (
-            f"Lark was checked {call_count['n']} times in one cycle — should only be 1!"
-        )
+        assert (
+            call_count["n"] == 1
+        ), f"Lark was checked {call_count['n']} times in one cycle — should only be 1!"
 
 
 # ══════════════════════════════════════════════════════════════
 # PERFORMANCE-3: Image compression works fast enough
 # ══════════════════════════════════════════════════════════════
+
 
 class TestImageCompression:
     """
@@ -208,7 +241,9 @@ class TestImageCompression:
         start = time.time()
         result, media_type = _compress_image(small_img)
         elapsed = time.time() - start
-        assert elapsed < 0.1, f"Even small image compression took {elapsed:.2f}s — too slow!"
+        assert (
+            elapsed < 0.1
+        ), f"Even small image compression took {elapsed:.2f}s — too slow!"
         assert result == small_img  # unchanged
 
     def test_large_image_compressed_under_1_second(self):
@@ -219,12 +254,13 @@ class TestImageCompression:
         large_img = _fake_png(1500)
 
         class BigBytes(bytes):
-            def __len__(self): return 5_000_000
+            def __len__(self):
+                return 5_000_000
 
         big = BigBytes(large_img)
         start = time.time()
         result, media_type = _compress_image(big)
         elapsed = time.time() - start
-        assert elapsed < 1.0, (
-            f"Image compression took {elapsed:.2f}s — too slow! Expected under 1 second."
-        )
+        assert (
+            elapsed < 1.0
+        ), f"Image compression took {elapsed:.2f}s — too slow! Expected under 1 second."
