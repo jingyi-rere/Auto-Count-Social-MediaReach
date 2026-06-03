@@ -253,11 +253,16 @@ def process_all() -> list:
             len(browser_rows),
             MAX_PARALLEL_BROWSER,
         )
-        browser_urls = [url for _, url in browser_rows]
-        url_to_rid = {url: rid for rid, url in browser_rows}
+        # Build url→[list of rids] so duplicate URLs (same video pasted twice) both get written
+        from collections import defaultdict as _defaultdict
+
+        url_to_rids: dict = _defaultdict(list)
+        for rid, url in browser_rows:
+            url_to_rids[url].append(rid)
+        unique_urls = list(url_to_rids.keys())
 
         try:
-            batch = get_screenshots_batch(browser_urls)
+            batch = get_screenshots_batch(unique_urls)
         except Exception as exc:
             log.error("Browser batch launch failed: %s", exc, exc_info=True)
             for rid, url in browser_rows:
@@ -270,16 +275,17 @@ def process_all() -> list:
             batch = {}
 
         for url, result in batch.items():
-            rid = url_to_rid[url]
-            log.info("  Browser URL=%s", url[:80])
+            rids = url_to_rids[url]
+            log.info("  Browser URL=%s (%d row(s))", url[:80], len(rids))
             if isinstance(result, Exception):
                 log.error("  ✗ FAILED for %s — %s", url[:80], result)
-                result_map[rid] = {
-                    "url": url,
-                    "record_id": rid,
-                    "status": "error",
-                    "error": str(result),
-                }
+                for rid in rids:
+                    result_map[rid] = {
+                        "url": url,
+                        "record_id": rid,
+                        "status": "error",
+                        "error": str(result),
+                    }
                 continue
 
             main_ss, thumb_ss, dom_date, dom_vc, dom_cap = result
@@ -304,19 +310,20 @@ def process_all() -> list:
                     data.get("view_count"),
                     (data.get("caption") or "")[:50],
                 )
-                write_row(
-                    record_id=rid,
-                    posted_date=data.get("posted_date"),
-                    caption=data.get("caption"),
-                    view_count=data.get("view_count"),
-                )
-                log.info("  ✓ Written to Lark (record_id=%s)", rid)
-                result_map[rid] = {
-                    "url": url,
-                    "record_id": rid,
-                    "status": "ok",
-                    "data": data,
-                }
+                for rid in rids:
+                    write_row(
+                        record_id=rid,
+                        posted_date=data.get("posted_date"),
+                        caption=data.get("caption"),
+                        view_count=data.get("view_count"),
+                    )
+                    log.info("  ✓ Written to Lark (record_id=%s)", rid)
+                    result_map[rid] = {
+                        "url": url,
+                        "record_id": rid,
+                        "status": "ok",
+                        "data": data,
+                    }
             except Exception as exc:
                 log.error("  ✗ FAILED for %s — %s", url[:80], exc, exc_info=True)
                 result_map[rid] = {
