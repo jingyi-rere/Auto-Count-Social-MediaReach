@@ -84,17 +84,17 @@ class TestProcessAll:
                 "view_count": 1000,
             }
         )
-        mock_screenshot = MagicMock()
+        mock_batch = MagicMock(return_value={})
         mock_write = MagicMock()
 
         monkeypatch.setattr(processor, "get_metadata", mock_metadata)
-        monkeypatch.setattr(processor, "get_screenshot", mock_screenshot)
+        monkeypatch.setattr(processor, "get_screenshots_batch", mock_batch)
         monkeypatch.setattr(processor, "write_row", mock_write)
 
         processor.process_all()
 
         mock_metadata.assert_called_once_with("https://www.youtube.com/watch?v=test123")
-        mock_screenshot.assert_not_called()
+        mock_batch.assert_not_called()
         mock_write.assert_called_once_with(
             record_id="rec_yt1",
             posted_date="2024-03-15",
