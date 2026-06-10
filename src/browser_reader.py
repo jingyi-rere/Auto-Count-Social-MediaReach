@@ -310,10 +310,22 @@ async def _get_x_data(page, post_url: str):
     except Exception as exc:
         log.debug("X: date extraction failed: %s", exc)
 
+    # Body-text fallback for date — "H:MM AM · Jun 9, 2026" pattern
+    if not dom_date and raw_body:
+        import re as _re3
+        from dateutil import parser as _dp
+
+        m = _re3.search(r"·\s+([A-Za-z]{3}\s+\d{1,2},\s+\d{4})", raw_body)
+        if m:
+            try:
+                dom_date = _dp.parse(m.group(1)).strftime("%Y-%m-%d")
+                log.info("X: date (body) = %s (raw: %s)", dom_date, m.group(1))
+            except Exception:
+                pass
+
     post_screenshot = await page.screenshot(full_page=False)
 
-    # Click the analytics link (the view count number) to open the Post Analytics modal.
-    # This requires being logged in as the post owner.
+    # Click the analytics link to open the Post Analytics modal (requires post owner login).
     dom_view_count = None
     try:
         clicked = await page.evaluate(
@@ -351,19 +363,17 @@ async def _get_x_data(page, post_url: str):
     except Exception as exc:
         log.debug("X: analytics click failed: %s", exc)
 
-    # Fallback: read rounded view count from post page if analytics modal failed
+    # Fallback: rounded view count from raw_body (already fetched above)
     if dom_view_count is None:
         try:
-            raw_vc = await page.evaluate(
-                """
-                () => {
-                    const body = document.body.innerText;
-                    let m = body.match(/([\\d,.]+[KkMm]?)\\s*\\n\\s*(?:Views?|Impressions?)/i);
-                    if (m) return m[1].replace(/,/g, '');
-                    return null;
-                }
-            """
+            import re as _re4
+
+            m = _re4.search(
+                r"([\d,.]+[KkMm]?)\s*\n\s*(?:Views?|Impressions?)",
+                raw_body,
+                _re4.IGNORECASE,
             )
+            raw_vc = m.group(1).replace(",", "") if m else None
             dom_view_count = _parse_count_text(raw_vc)
             if dom_view_count is not None:
                 log.info(
