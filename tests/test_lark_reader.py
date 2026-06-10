@@ -55,7 +55,14 @@ class TestExtractUrl:
 # ── get_new_rows filtering ───────────────────────────────────────
 
 
-def _make_record(record_id, url, has_date=False, has_views=False, pic="TAN JING YI"):
+def _make_record(
+    record_id,
+    url,
+    has_date=False,
+    has_views=False,
+    has_caption=False,
+    pic="TAN JING YI",
+):
     """Helper to build a mock Lark record."""
     fields = {}
     if url:
@@ -64,6 +71,8 @@ def _make_record(record_id, url, has_date=False, has_views=False, pic="TAN JING 
         fields["Date"] = 1710460800000  # some timestamp
     if has_views:
         fields["Reach"] = 50000
+    if has_caption:
+        fields["Title"] = "Some caption text"
     if pic is not None:
         fields["PIC"] = [{"en_name": pic}]
 
