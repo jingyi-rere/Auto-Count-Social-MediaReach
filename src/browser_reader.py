@@ -241,22 +241,25 @@ async def _get_x_data(page, post_url: str):
     except Exception:
         pass
 
-    # Dump first 600 chars of body text so we can see the page structure
-    try:
-        body_sample = await page.evaluate("() => document.body.innerText.slice(0, 600)")
-        log.info("X: body sample = %r", body_sample)
-    except Exception:
-        pass
-
     dom_caption = None
+    dom_date = None
+
+    # Read full body text once — reuse for caption, date, and view count.
+    # X renders tweet content in body.innerText even when not logged in.
+    # Structure: "Post\n{Name}\n@{handle}\n{CAPTION}\n{MM:SS}\n{H:MM AM · Mon DD, YYYY}\n{N}\nViews\n..."
+    raw_body = ""
+    try:
+        raw_body = await page.evaluate("() => document.body.innerText") or ""
+    except Exception as exc:
+        log.debug("X: body.innerText failed: %s", exc)
+
+    # Try DOM selectors first (works when logged in with full page render)
     try:
         raw_cap = await page.evaluate(
             """
             () => {
-                // Primary: data-testid="tweetText" (standard tweet body)
                 const el = document.querySelector('[data-testid="tweetText"]');
                 if (el) return el.innerText.trim();
-                // Fallback: article div with lang attribute (X sometimes changes structure)
                 const article = document.querySelector('article[data-testid="tweet"]')
                              || document.querySelector('article');
                 if (article) {
@@ -269,18 +272,27 @@ async def _get_x_data(page, post_url: str):
         )
         if raw_cap and len(raw_cap) >= 3:
             dom_caption = raw_cap
-            log.info("X: caption = %r", dom_caption[:80])
-        else:
-            log.debug("X: DOM selectors found nothing — tweet may be media-only")
+            log.info("X: caption (DOM) = %r", dom_caption[:80])
     except Exception as exc:
-        log.debug("X: caption extraction failed: %s", exc)
+        log.debug("X: DOM caption failed: %s", exc)
 
-    dom_date = None
+    # Body-text fallback for caption — parses the plain-text structure X renders
+    # for all users. Pattern: text between @handle and video duration (MM:SS) or time.
+    if not dom_caption and raw_body:
+        import re as _re2
+
+        m = _re2.search(r"@\S+\n([\s\S]+?)\n\d{1,2}:\d{2}(?:\n|\s+[AP]M\s·)", raw_body)
+        if m:
+            cap = m.group(1).strip()
+            if len(cap) >= 3:
+                dom_caption = cap
+                log.info("X: caption (body) = %r", dom_caption[:80])
+
+    # DOM date
     try:
         raw_dt = await page.evaluate(
             """
             () => {
-                // Prefer the <time> inside the tweet article to avoid nav/sidebar times
                 const article = document.querySelector('article[data-testid="tweet"]')
                              || document.querySelector('article');
                 if (article) {
@@ -294,7 +306,7 @@ async def _get_x_data(page, post_url: str):
         )
         if raw_dt:
             dom_date = _parse_ig_date(raw_dt)
-            log.info("X: date = %s (raw: %s)", dom_date, raw_dt)
+            log.info("X: date (DOM) = %s (raw: %s)", dom_date, raw_dt)
     except Exception as exc:
         log.debug("X: date extraction failed: %s", exc)
 
