@@ -463,6 +463,7 @@ class TestPositiveGetNewRows:
                     "https://youtube.com/watch?v=abc",
                     has_date=True,
                     has_views=True,
+                    has_caption=True,
                 )
             ],
             monkeypatch,
