@@ -111,8 +111,8 @@ def get_rows_with_urls() -> list:
 
 def get_new_rows() -> list:
     """
-    Only rows where Link has a URL but Date OR Reach is still empty.
-    These are the new videos that haven't been processed yet.
+    Rows where Link has a URL but any of Date, Reach, or Title (caption) is still empty.
+    Skips only when all three are filled.
     """
     rows = []
     page_token = None
@@ -125,10 +125,12 @@ def get_new_rows() -> list:
             url = _extract_url(fields.get(FIELD_LINK, ""))
             if not url:
                 continue
-            # Skip if both date and views are already filled
+            # Skip only when all three key columns are already filled
             already_has_date = bool(fields.get(FIELD_DATE))
             already_has_views = bool(fields.get(FIELD_VIEWS))
-            if already_has_date and already_has_views:
+            caption_raw = fields.get(FIELD_CAPTION, "")
+            already_has_caption = bool(str(caption_raw).strip() if caption_raw else "")
+            if already_has_date and already_has_views and already_has_caption:
                 continue
             # Read existing content type — so processor can decide whether to overwrite
             existing_ct_raw = fields.get(FIELD_CONTENT_TYPE, "")
