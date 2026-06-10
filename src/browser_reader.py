@@ -228,19 +228,45 @@ async def _get_x_data(page, post_url: str):
     await page.goto(post_url, wait_until="domcontentloaded", timeout=45_000)
     await page.wait_for_timeout(5_000)
 
+    # Dismiss any login/sign-up modal — X shows these even for logged-in sessions
+    # when navigating from outside the site. Escape closes the overlay and reveals
+    # the tweet text underneath.
+    await page.keyboard.press("Escape")
+    await page.wait_for_timeout(800)
+    try:
+        close_btn = await page.query_selector('[data-testid="app-bar-close"]')
+        if close_btn:
+            await close_btn.click()
+            await page.wait_for_timeout(500)
+    except Exception:
+        pass
+
     dom_caption = None
     try:
         raw_cap = await page.evaluate(
             """
             () => {
+                // Primary: data-testid="tweetText" (standard tweet body)
                 const el = document.querySelector('[data-testid="tweetText"]');
-                return el ? el.innerText.trim() : null;
+                if (el) return el.innerText.trim();
+                // Fallback: article div with lang attribute (X sometimes changes structure)
+                const article = document.querySelector('article[data-testid="tweet"]')
+                             || document.querySelector('article');
+                if (article) {
+                    const langDiv = article.querySelector('div[lang][dir="auto"]');
+                    if (langDiv) return langDiv.innerText.trim();
+                }
+                return null;
             }
         """
         )
         if raw_cap and len(raw_cap) >= 3:
             dom_caption = raw_cap
             log.info("X: caption = %r", dom_caption[:80])
+        else:
+            log.debug(
+                "X: no caption found (tweet may be media-only or behind login wall)"
+            )
     except Exception as exc:
         log.debug("X: caption extraction failed: %s", exc)
 
@@ -249,6 +275,13 @@ async def _get_x_data(page, post_url: str):
         raw_dt = await page.evaluate(
             """
             () => {
+                // Prefer the <time> inside the tweet article to avoid nav/sidebar times
+                const article = document.querySelector('article[data-testid="tweet"]')
+                             || document.querySelector('article');
+                if (article) {
+                    const t = article.querySelector('time[datetime]');
+                    if (t) return t.getAttribute('datetime');
+                }
                 const t = document.querySelector('time[datetime]');
                 return t ? t.getAttribute('datetime') : null;
             }
