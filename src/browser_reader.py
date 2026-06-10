@@ -241,6 +241,13 @@ async def _get_x_data(page, post_url: str):
     except Exception:
         pass
 
+    # Dump first 600 chars of body text so we can see the page structure
+    try:
+        body_sample = await page.evaluate("() => document.body.innerText.slice(0, 600)")
+        log.info("X: body sample = %r", body_sample)
+    except Exception:
+        pass
+
     dom_caption = None
     try:
         raw_cap = await page.evaluate(
@@ -264,9 +271,7 @@ async def _get_x_data(page, post_url: str):
             dom_caption = raw_cap
             log.info("X: caption = %r", dom_caption[:80])
         else:
-            log.debug(
-                "X: no caption found (tweet may be media-only or behind login wall)"
-            )
+            log.debug("X: DOM selectors found nothing — tweet may be media-only")
     except Exception as exc:
         log.debug("X: caption extraction failed: %s", exc)
 
