@@ -105,7 +105,11 @@ class TestGetNewRows:
     def test_skips_row_with_both_date_and_views(self, monkeypatch):
         records = [
             _make_record(
-                "rec1", "https://youtube.com/watch?v=abc", has_date=True, has_views=True
+                "rec1",
+                "https://youtube.com/watch?v=abc",
+                has_date=True,
+                has_views=True,
+                has_caption=True,
             )
         ]
         monkeypatch.setattr(
