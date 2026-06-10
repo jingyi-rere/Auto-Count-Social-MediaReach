@@ -405,7 +405,14 @@ class TestPositiveVisionExtract:
 # ══════════════════════════════════════════════════════════════
 
 
-def _make_record(record_id, url, has_date=False, has_views=False, pic="TAN JING YI"):
+def _make_record(
+    record_id,
+    url,
+    has_date=False,
+    has_views=False,
+    has_caption=False,
+    pic="TAN JING YI",
+):
     fields = {}
     if url:
         fields["Link"] = {"link": url, "text": url}
@@ -413,6 +420,8 @@ def _make_record(record_id, url, has_date=False, has_views=False, pic="TAN JING 
         fields["Date"] = 1710460800000
     if has_views:
         fields["Reach"] = 50000
+    if has_caption:
+        fields["Title"] = "Some caption text"
     if pic is not None:
         fields["PIC"] = [{"en_name": pic}]
     rec = MagicMock()
