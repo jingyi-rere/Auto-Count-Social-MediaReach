@@ -4,7 +4,7 @@ reporter.py — Prints a final summary after process_all() completes.
 
 
 def print_report(results: list) -> None:
-    ok     = [r for r in results if r["status"] == "ok"]
+    ok = [r for r in results if r["status"] == "ok"]
     errors = [r for r in results if r["status"] == "error"]
 
     print("\n" + "=" * 62)
@@ -21,7 +21,7 @@ def print_report(results: list) -> None:
             print(f"    • {r['url'][:55]}")
             print(f"      Date  : {d['posted_date']}")
             print(f"      Views : {d['view_count']}")
-            print(f"      Caption: {d['caption'][:55]}")
+            print(f"      Caption: {(d['caption'] or '')[:55]}")
 
     if errors:
         print("\n  Errors:")
