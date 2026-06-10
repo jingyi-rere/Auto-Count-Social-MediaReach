@@ -166,7 +166,11 @@ class TestGetNewRows:
         records = [
             _make_record("rec1", "https://youtube.com/watch?v=new"),  # needs processing
             _make_record(
-                "rec2", "https://instagram.com/reel/abc/", has_date=True, has_views=True
+                "rec2",
+                "https://instagram.com/reel/abc/",
+                has_date=True,
+                has_views=True,
+                has_caption=True,
             ),  # skip — done
             _make_record(
                 "rec3", "https://tiktok.com/@user/video/123"
