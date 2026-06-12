@@ -394,3 +394,136 @@ def process_all() -> list:
     results = _fill_dates_from_same_videos(results)
 
     return results
+
+
+def refresh_views(rows: list) -> list:
+    """
+    Re-fetch view counts for already-filled rows and update only the Reach column.
+    rows: list of (record_id, url, existing_ct) tuples.
+    Returns list of result dicts with status "ok", "skip", or "error".
+    """
+    if not rows:
+        return []
+
+    log.info("Refreshing view counts for %d same-week row(s)...", len(rows))
+
+    ytdlp_rows = [(rid, url, ct) for rid, url, ct in rows if _route(url) == "ytdlp"]
+    browser_rows = [(rid, url, ct) for rid, url, ct in rows if _route(url) != "ytdlp"]
+
+    results = []
+
+    if ytdlp_rows:
+        with ThreadPoolExecutor(max_workers=MAX_PARALLEL_YTDLP) as pool:
+            futures = {
+                pool.submit(get_metadata, url): (rid, url)
+                for rid, url, _ct in ytdlp_rows
+            }
+            for future in as_completed(futures):
+                rid, url = futures[future]
+                try:
+                    data = future.result()
+                    vc = data.get("view_count")
+                    if vc and vc != 0:
+                        write_cell(record_id=rid, column="G", value=int(vc))
+                        log.info("  ↻ Refreshed views=%s (record_id=%s)", vc, rid)
+                        results.append(
+                            {
+                                "url": url,
+                                "record_id": rid,
+                                "status": "ok",
+                                "view_count": vc,
+                            }
+                        )
+                    else:
+                        results.append(
+                            {
+                                "url": url,
+                                "record_id": rid,
+                                "status": "skip",
+                                "view_count": vc,
+                            }
+                        )
+                except Exception as exc:
+                    log.error("  ✗ Refresh FAILED for %s — %s", url[:80], exc)
+                    results.append(
+                        {
+                            "url": url,
+                            "record_id": rid,
+                            "status": "error",
+                            "error": str(exc),
+                        }
+                    )
+
+    if browser_rows:
+        from collections import defaultdict as _defaultdict2
+
+        url_to_rids: dict = _defaultdict2(list)
+        for rid, url, _ct in browser_rows:
+            url_to_rids[url].append(rid)
+        unique_urls = list(url_to_rids.keys())
+
+        try:
+            batch = get_screenshots_batch(unique_urls)
+        except Exception as exc:
+            log.error("Browser batch launch failed during refresh: %s", exc)
+            for rid, url, _ct in browser_rows:
+                results.append(
+                    {"url": url, "record_id": rid, "status": "error", "error": str(exc)}
+                )
+            batch = {}
+
+        for url, result in batch.items():
+            rids = url_to_rids[url]
+            if isinstance(result, Exception):
+                log.error("  ✗ Refresh FAILED for %s — %s", url[:80], result)
+                for rid in rids:
+                    results.append(
+                        {
+                            "url": url,
+                            "record_id": rid,
+                            "status": "error",
+                            "error": str(result),
+                        }
+                    )
+                continue
+
+            main_ss, thumb_ss, dom_date, dom_vc, dom_cap = result
+            try:
+                data = _build_browser_data(
+                    url, main_ss, thumb_ss, dom_date, dom_vc, dom_cap
+                )
+                vc = data.get("view_count")
+                for rid in rids:
+                    if vc and vc != 0:
+                        write_cell(record_id=rid, column="G", value=int(vc))
+                        log.info("  ↻ Refreshed views=%s (record_id=%s)", vc, rid)
+                        results.append(
+                            {
+                                "url": url,
+                                "record_id": rid,
+                                "status": "ok",
+                                "view_count": vc,
+                            }
+                        )
+                    else:
+                        results.append(
+                            {
+                                "url": url,
+                                "record_id": rid,
+                                "status": "skip",
+                                "view_count": vc,
+                            }
+                        )
+            except Exception as exc:
+                log.error("  ✗ Refresh FAILED for %s — %s", url[:80], exc)
+                for rid in rids:
+                    results.append(
+                        {
+                            "url": url,
+                            "record_id": rid,
+                            "status": "error",
+                            "error": str(exc),
+                        }
+                    )
+
+    return results
