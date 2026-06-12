@@ -109,6 +109,117 @@ def _js_find_thumbnail(shortcode: str) -> str:
     """
 
 
+# ── LinkedIn extractor ────────────────────────────────────────────────────────
+
+
+async def _get_linkedin_data(page, post_url: str):
+    """
+    Extract LinkedIn post data (impressions/views) via DOM + body text.
+    Returns (post_screenshot, None, dom_date, dom_view_count, dom_caption).
+
+    Requires being logged in — impression counts are only visible to the post owner
+    or connections. Caption skipped for now (text posts can be very long).
+    """
+    log.info("LinkedIn: loading %s", post_url[:80])
+    await page.goto(post_url, wait_until="domcontentloaded", timeout=45_000)
+    await page.wait_for_timeout(5_000)
+
+    # Dismiss any sign-in modal
+    await page.keyboard.press("Escape")
+    await page.wait_for_timeout(500)
+
+    raw_body = ""
+    try:
+        raw_body = await page.evaluate("() => document.body.innerText") or ""
+        log.info("LinkedIn: body sample = %r", raw_body[:300])
+    except Exception as exc:
+        log.debug("LinkedIn: body read failed: %s", exc)
+
+    dom_view_count = None
+
+    # Try DOM selector first — LinkedIn shows impressions as a dedicated element
+    try:
+        raw_vc = await page.evaluate(
+            """
+            () => {
+                // Impression count on own posts
+                const imp = document.querySelector(
+                    '[data-test-id="social-counts__impressions"] span, '
+                    + '.social-details-social-counts__item--impressions span, '
+                    + '.social-details-social-counts__reactions-count'
+                );
+                if (imp) return imp.innerText.trim();
+
+                // Video view count
+                const views = document.querySelector(
+                    '.video-s-loader__counts, '
+                    + '[data-test-id="video-play-count"] span'
+                );
+                if (views) return views.innerText.trim();
+
+                return null;
+            }
+        """
+        )
+        if raw_vc:
+            dom_view_count = _parse_count_text(raw_vc.replace(",", "").split()[0])
+            if dom_view_count is not None:
+                log.info(
+                    "LinkedIn: view count (DOM) = %d (raw: %s)", dom_view_count, raw_vc
+                )
+    except Exception as exc:
+        log.debug("LinkedIn: DOM view count failed: %s", exc)
+
+    # Body text fallback — LinkedIn renders "X impressions" or "X views" in plain text
+    if dom_view_count is None and raw_body:
+        import re as _re_li
+
+        for pattern in [
+            r"([\d,.]+[KkMm]?)\s+impressions?",
+            r"([\d,.]+[KkMm]?)\s+views?",
+            r"([\d,.]+[KkMm]?)\s+reactions?",
+        ]:
+            m = _re_li.search(pattern, raw_body, _re_li.IGNORECASE)
+            if m:
+                raw_vc = m.group(1).replace(",", "")
+                dom_view_count = _parse_count_text(raw_vc)
+                if dom_view_count is not None:
+                    log.info(
+                        "LinkedIn: view count (body) = %d (raw: %s)",
+                        dom_view_count,
+                        raw_vc,
+                    )
+                    break
+
+    # Date — LinkedIn shows relative dates ("2d", "1w") or absolute in the post header
+    dom_date = None
+    try:
+        raw_dt = await page.evaluate(
+            """
+            () => {
+                // <time> with datetime attribute (most reliable)
+                const t = document.querySelector('time[datetime]');
+                if (t) return t.getAttribute('datetime');
+                return null;
+            }
+        """
+        )
+        if raw_dt:
+            dom_date = _parse_ig_date(raw_dt)
+            log.info("LinkedIn: date (DOM) = %s (raw: %s)", dom_date, raw_dt)
+    except Exception as exc:
+        log.debug("LinkedIn: date extraction failed: %s", exc)
+
+    post_screenshot = await page.screenshot(full_page=False)
+    return (
+        post_screenshot,
+        None,
+        dom_date,
+        dom_view_count,
+        None,
+    )  # caption skipped for now
+
+
 # ── TikTok extractor ──────────────────────────────────────────────────────────
 
 
