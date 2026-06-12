@@ -188,6 +188,45 @@ def get_dated_rows_for_platforms(platforms: tuple) -> list:
     return rows
 
 
+def get_filled_rows_for_weeks(week_values: set) -> list:
+    """
+    Rows that are already fully filled (date + views + caption) AND belong to
+    one of the given week values. Used to refresh view counts after a fill cycle.
+    Returns list of (record_id, url, existing_ct) tuples.
+    """
+    if not week_values:
+        return []
+    rows = []
+    page_token = None
+    while True:
+        data = _list_records(page_token)
+        for record in data.items or []:
+            fields = record.fields
+            if not _pic_matches(fields.get(FIELD_PIC)):
+                continue
+            url = _extract_url(fields.get(FIELD_LINK, ""))
+            if not url:
+                continue
+            week_raw = fields.get(FIELD_WEEK, "")
+            week_val = str(week_raw).strip() if week_raw else ""
+            if week_val not in week_values:
+                continue
+            # Only refresh fully-filled rows
+            already_has_date = bool(fields.get(FIELD_DATE))
+            already_has_views = bool(fields.get(FIELD_VIEWS))
+            caption_raw = fields.get(FIELD_CAPTION, "")
+            already_has_caption = bool(str(caption_raw).strip() if caption_raw else "")
+            if not (already_has_date and already_has_views and already_has_caption):
+                continue
+            existing_ct_raw = fields.get(FIELD_CONTENT_TYPE, "")
+            existing_ct = str(existing_ct_raw).strip() if existing_ct_raw else ""
+            rows.append((record.record_id, url, existing_ct))
+        if not data.has_more:
+            break
+        page_token = data.page_token
+    return rows
+
+
 def get_all_field_names() -> list:
     """
     Returns all field names in the table.
