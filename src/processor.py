@@ -32,6 +32,7 @@ VISION_PLATFORMS = (
     "tiktok.com",
     "x.com",
     "twitter.com",
+    "linkedin.com",
 )
 
 # Platforms that reliably return the post date (used for cross-platform date fill)
