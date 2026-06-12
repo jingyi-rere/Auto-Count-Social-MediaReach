@@ -347,6 +347,7 @@ def process_all() -> list:
                             "record_id": rid,
                             "status": "ok",
                             "data": data,
+                            "week": rid_to_week.get(rid, ""),
                         }
                     else:
                         # Duplicate rows: mark clearly, skip views
@@ -372,6 +373,7 @@ def process_all() -> list:
                             "record_id": rid,
                             "status": "ok",
                             "data": dup_data,
+                            "week": rid_to_week.get(rid, ""),
                         }
 
             except Exception as exc:
@@ -382,6 +384,7 @@ def process_all() -> list:
                         "record_id": rid,
                         "status": "error",
                         "error": str(exc),
+                        "week": rid_to_week.get(rid, ""),
                     }
 
     # Rebuild in original row order
