@@ -210,14 +210,37 @@ async def _get_linkedin_data(page, post_url: str):
     except Exception as exc:
         log.debug("LinkedIn: date extraction failed: %s", exc)
 
+    # Caption — first sentence only (for recognition, not full text)
+    dom_caption = None
+    if raw_body:
+        import re as _re_li2
+
+        # LinkedIn body structure (logged in):
+        # "...{Name}\n{handle or title}\n{relative_date}\n\n{POST TEXT}\n\n...see more...\nN impressions"
+        # Find the post text block — appears after a blank line following the author header.
+        # Take only the first sentence (up to first . ! ? or newline).
+        m = _re_li2.search(
+            r"\n\n([^\n]{10,}?)(?:[.!?]|(?=\n))",
+            raw_body,
+        )
+        if m:
+            first_sentence = m.group(1).strip()
+            # Skip navigation noise (lines that are just UI labels)
+            noise = {
+                "home",
+                "my network",
+                "jobs",
+                "messaging",
+                "notifications",
+                "me",
+                "for business",
+            }
+            if first_sentence.lower() not in noise and len(first_sentence) >= 10:
+                dom_caption = first_sentence
+                log.info("LinkedIn: caption (first sentence) = %r", dom_caption[:80])
+
     post_screenshot = await page.screenshot(full_page=False)
-    return (
-        post_screenshot,
-        None,
-        dom_date,
-        dom_view_count,
-        None,
-    )  # caption skipped for now
+    return post_screenshot, None, dom_date, dom_view_count, dom_caption
 
 
 # ── TikTok extractor ──────────────────────────────────────────────────────────
