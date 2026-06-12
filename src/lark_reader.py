@@ -136,7 +136,9 @@ def get_new_rows() -> list:
             # Read existing content type — so processor can decide whether to overwrite
             existing_ct_raw = fields.get(FIELD_CONTENT_TYPE, "")
             existing_ct = str(existing_ct_raw).strip() if existing_ct_raw else ""
-            rows.append((record.record_id, url, existing_ct))
+            week_raw = fields.get(FIELD_WEEK, "")
+            week_val = str(week_raw).strip() if week_raw else ""
+            rows.append((record.record_id, url, existing_ct, week_val))
         if not data.has_more:
             break
         page_token = data.page_token
