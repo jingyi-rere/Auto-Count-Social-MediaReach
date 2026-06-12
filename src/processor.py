@@ -193,9 +193,12 @@ def process_all() -> list:
 
     log.info("Found %d new row(s) to process.", len(rows))
 
-    # Normalize rows to 3-tuples (record_id, url, existing_content_type).
-    # Test mocks may return 2-tuples — the third element defaults to "" in that case.
-    rows_n = [(row[0], row[1], row[2] if len(row) > 2 else "") for row in rows]
+    # Normalize rows to 4-tuples (record_id, url, existing_content_type, week).
+    # Test mocks may return 2-tuples — missing elements default to "".
+    rows_n = [
+        (row[0], row[1], row[2] if len(row) > 2 else "", row[3] if len(row) > 3 else "")
+        for row in rows
+    ]
 
     ytdlp_rows = [(rid, url, ct) for rid, url, ct in rows_n if _route(url) == "ytdlp"]
     browser_rows = [(rid, url, ct) for rid, url, ct in rows_n if _route(url) != "ytdlp"]
