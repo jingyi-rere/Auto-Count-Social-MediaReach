@@ -12,7 +12,8 @@ import os
 import sys
 import time
 from src._env           import *  # noqa: load .env first
-from src.processor      import process_all
+from src.processor      import process_all, refresh_views
+from src.lark_reader    import get_filled_rows_for_weeks
 from src.reporter       import print_report
 from src.logger         import get_logger, LOG_FILE
 from src.friendly_errors import make_friendly
