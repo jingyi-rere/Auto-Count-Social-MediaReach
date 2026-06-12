@@ -211,32 +211,20 @@ async def _get_linkedin_data(page, post_url: str):
         log.debug("LinkedIn: date extraction failed: %s", exc)
 
     # Caption — first sentence only (for recognition, not full text)
+    # LinkedIn body structure (logged in):
+    # "...nav...\n{Name}\n{Job Title}\n{relative_date e.g. '1d','2w','1y'}\n\n{POST TEXT}\n\n...see more...\nN impressions"
+    # Anchor on the relative-date token to skip past the author header noise.
     dom_caption = None
     if raw_body:
         import re as _re_li2
 
-        # LinkedIn body structure (logged in):
-        # "...{Name}\n{handle or title}\n{relative_date}\n\n{POST TEXT}\n\n...see more...\nN impressions"
-        # Find the post text block — appears after a blank line following the author header.
-        # Take only the first sentence (up to first . ! ? or newline).
-        m = _re_li2.search(
-            r"\n\n([^\n]{10,}?)(?:[.!?]|(?=\n))",
-            raw_body,
-        )
+        m = _re_li2.search(r"\n\d+(?:d|w|mo|h|y)\n\n([^\n]{10,})", raw_body)
         if m:
-            first_sentence = m.group(1).strip()
-            # Skip navigation noise (lines that are just UI labels)
-            noise = {
-                "home",
-                "my network",
-                "jobs",
-                "messaging",
-                "notifications",
-                "me",
-                "for business",
-            }
-            if first_sentence.lower() not in noise and len(first_sentence) >= 10:
-                dom_caption = first_sentence
+            first_line = m.group(1).strip()
+            # Take up to the first sentence-ending punctuation
+            sentence = _re_li2.split(r"(?<=[.!?])\s", first_line)[0].strip()
+            if len(sentence) >= 10:
+                dom_caption = sentence
                 log.info("LinkedIn: caption (first sentence) = %r", dom_caption[:80])
 
     post_screenshot = await page.screenshot(full_page=False)
