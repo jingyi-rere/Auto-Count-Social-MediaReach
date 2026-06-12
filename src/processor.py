@@ -7,7 +7,7 @@ processor.py — Routes each URL to the right extraction method:
 from difflib import SequenceMatcher
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from src.lark_reader import get_new_rows, get_dated_rows_for_platforms
-from src.lark_writer import write_row
+from src.lark_writer import write_row, write_cell
 from src.metadata_reader import get_metadata
 from src.browser_reader import get_screenshot, get_screenshots_batch
 from src.vision_extract import extract_from_screenshot
