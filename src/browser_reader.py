@@ -131,7 +131,7 @@ async def _get_linkedin_data(page, post_url: str):
     raw_body = ""
     try:
         raw_body = await page.evaluate("() => document.body.innerText") or ""
-        log.info("LinkedIn: body sample = %r", raw_body[:1500])
+        log.info("LinkedIn: body sample = %r", raw_body[:300])
     except Exception as exc:
         log.debug("LinkedIn: body read failed: %s", exc)
 
