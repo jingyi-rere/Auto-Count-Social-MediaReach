@@ -218,7 +218,9 @@ async def _get_linkedin_data(page, post_url: str):
     if raw_body:
         import re as _re_li2
 
-        m = _re_li2.search(r"\n\d+(?:d|w|mo|h|y)\n\n([^\n]{10,})", raw_body)
+        # Structure: "11mo • \n \nWhen you're new..." or "1d\n\nPost text..."
+        # Date token (e.g. 11mo, 1d, 2w, 1y) followed by optional bullet + whitespace + newline(s)
+        m = _re_li2.search(r"\d+(?:mo|[dwhy])[^\n]*\n\s*\n([^\n]{10,})", raw_body)
         if m:
             first_line = m.group(1).strip()
             # Take up to the first sentence-ending punctuation
