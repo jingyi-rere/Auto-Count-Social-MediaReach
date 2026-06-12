@@ -1,5 +1,5 @@
 """
-login_once.py — ONE TIME ONLY setup: log into Instagram, RedNote, and X on Firefox.
+login_once.py — ONE TIME ONLY setup: log into Instagram, RedNote, X, and LinkedIn on Firefox.
 
 Run this once:
     python login_once.py
@@ -25,19 +25,24 @@ async def login():
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
 
         # Instagram
-        print("\n[1/3] Opening Instagram login...")
+        print("\n[1/4] Opening Instagram login...")
         await page.goto("https://www.instagram.com/accounts/login/")
         input("    → Log into Instagram in the Firefox window, then press Enter here: ")
 
         # RedNote
-        print("\n[2/3] Opening RedNote login...")
+        print("\n[2/4] Opening RedNote login...")
         await page.goto("https://www.xiaohongshu.com")
         input("    → Log into RedNote in the Firefox window, then press Enter here: ")
 
-        # X (Twitter) — required for exact Impressions count from /analytics
-        print("\n[3/3] Opening X (Twitter) login...")
+        # X (Twitter)
+        print("\n[3/4] Opening X (Twitter) login...")
         await page.goto("https://x.com/login")
         input("    → Log into X in the Firefox window, then press Enter here: ")
+
+        # LinkedIn — required to see impression counts on posts
+        print("\n[4/4] Opening LinkedIn login...")
+        await page.goto("https://www.linkedin.com/login")
+        input("    → Log into LinkedIn in the Firefox window, then press Enter here: ")
 
         await ctx.close()
         print("\n✓ All done! Sessions saved permanently.")
