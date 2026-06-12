@@ -273,20 +273,23 @@ def process_all() -> list:
 
         # url → [(rid, existing_ct), ...]  — preserves per-row content type
         url_to_rows: dict = _defaultdict(list)
-        for rid, url, ct in browser_rows:
+        rid_to_week: dict = {}
+        for rid, url, ct, wk in browser_rows:
             url_to_rows[url].append((rid, ct))
+            rid_to_week[rid] = wk
         unique_urls = list(url_to_rows.keys())
 
         try:
             batch = get_screenshots_batch(unique_urls)
         except Exception as exc:
             log.error("Browser batch launch failed: %s", exc, exc_info=True)
-            for rid, url, _ct in browser_rows:
+            for rid, url, _ct, _wk in browser_rows:
                 result_map[rid] = {
                     "url": url,
                     "record_id": rid,
                     "status": "error",
                     "error": str(exc),
+                    "week": rid_to_week.get(rid, ""),
                 }
             batch = {}
 
