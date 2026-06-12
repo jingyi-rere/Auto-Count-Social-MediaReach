@@ -893,6 +893,8 @@ async def _take_screenshot(url: str):
                 return await _get_x_data(page, url)
             elif "tiktok.com" in url:
                 return await _get_tiktok_data(page, url)
+            elif "linkedin.com" in url:
+                return await _get_linkedin_data(page, url)
             else:
                 ss = await _screenshot_url(page, url)
                 return ss, None, None, None, None
