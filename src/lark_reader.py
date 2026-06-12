@@ -18,6 +18,7 @@ FIELD_VIEWS = os.getenv("LARK_FIELD_VIEWS", "Reach")
 FIELD_CAPTION = os.getenv("LARK_FIELD_CAPTION", "Title")
 FIELD_CONTENT_TYPE = os.getenv("LARK_FIELD_CONTENT_TYPE", "Content Type")
 FIELD_PIC = os.getenv("LARK_FIELD_PIC", "PIC")
+FIELD_WEEK = os.getenv("LARK_FIELD_WEEK", "Week")
 PIC_FILTER = os.getenv("LARK_PIC_FILTER", "")  # e.g. "TAN JING YI"
 
 
