@@ -218,11 +218,11 @@ def process_all() -> list:
         )
         with ThreadPoolExecutor(max_workers=MAX_PARALLEL_YTDLP) as pool:
             futures = {
-                pool.submit(get_metadata, url): (rid, url, ct)
-                for rid, url, ct in ytdlp_rows
+                pool.submit(get_metadata, url): (rid, url, ct, wk)
+                for rid, url, ct, wk in ytdlp_rows
             }
             for future in as_completed(futures):
-                rid, url, ct = futures[future]
+                rid, url, ct, wk = futures[future]
                 log.info("  yt-dlp URL=%s", url[:80])
                 try:
                     data = future.result()
@@ -250,6 +250,7 @@ def process_all() -> list:
                         "record_id": rid,
                         "status": "ok",
                         "data": data,
+                        "week": wk,
                     }
                 except Exception as exc:
                     log.error("  ✗ FAILED for %s — %s", url[:80], exc, exc_info=True)
@@ -258,6 +259,7 @@ def process_all() -> list:
                         "record_id": rid,
                         "status": "error",
                         "error": str(exc),
+                        "week": wk,
                     }
 
     # ── Browser URLs: one Firefox context, up to 3 concurrent pages ───────────
