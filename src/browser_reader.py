@@ -926,6 +926,9 @@ async def _process_one_url(ctx, semaphore: asyncio.Semaphore, url: str):
             elif "tiktok.com" in url:
                 result = await _get_tiktok_data(page, url)
                 return url, result, None
+            elif "linkedin.com" in url:
+                result = await _get_linkedin_data(page, url)
+                return url, result, None
             else:
                 ss = await _screenshot_url(page, url)
                 return url, (ss, None, None, None, None), None
