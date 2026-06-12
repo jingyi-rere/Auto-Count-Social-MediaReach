@@ -200,8 +200,12 @@ def process_all() -> list:
         for row in rows
     ]
 
-    ytdlp_rows = [(rid, url, ct) for rid, url, ct in rows_n if _route(url) == "ytdlp"]
-    browser_rows = [(rid, url, ct) for rid, url, ct in rows_n if _route(url) != "ytdlp"]
+    ytdlp_rows = [
+        (rid, url, ct, wk) for rid, url, ct, wk in rows_n if _route(url) == "ytdlp"
+    ]
+    browser_rows = [
+        (rid, url, ct, wk) for rid, url, ct, wk in rows_n if _route(url) != "ytdlp"
+    ]
 
     result_map: dict = {}  # record_id → result entry
 
