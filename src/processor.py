@@ -408,6 +408,16 @@ def refresh_views(rows: list) -> list:
     if not rows:
         return []
 
+    # Skip platforms where view count can't be reliably read (Vision-only, always None)
+    rows = [
+        (rid, url, ct)
+        for rid, url, ct in rows
+        if not any(p in url.lower() for p in REFRESH_SKIP_PLATFORMS)
+    ]
+    if not rows:
+        log.info("All rows are on skip-list platforms — nothing to refresh.")
+        return []
+
     log.info("Refreshing view counts for %d same-week row(s)...", len(rows))
 
     ytdlp_rows = [(rid, url, ct) for rid, url, ct in rows if _route(url) == "ytdlp"]
