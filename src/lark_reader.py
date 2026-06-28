@@ -19,19 +19,31 @@ FIELD_CAPTION = os.getenv("LARK_FIELD_CAPTION", "Title")
 FIELD_CONTENT_TYPE = os.getenv("LARK_FIELD_CONTENT_TYPE", "Content Type")
 FIELD_PIC = os.getenv("LARK_FIELD_PIC", "PIC")
 FIELD_WEEK = os.getenv("LARK_FIELD_WEEK", "Week")
-PIC_FILTER = os.getenv("LARK_PIC_FILTER", "")  # e.g. "TAN JING YI"
+PIC_FILTER = os.getenv(
+    "LARK_PIC_FILTER", ""
+)  # e.g. "TAN JING YI" — used only when explicitly requested
+
+# Platforms we don't touch at all — never read, never write, never re-check.
+# Views/date/caption can't be reliably extracted from these (login wall / bot detection).
+IGNORED_PLATFORMS = (
+    "xiaohongshu.com",
+    "xhslink.com",
+    "facebook.com",
+    "fb.watch",
+    "threads.net",
+)
 
 
-def _pic_matches(raw) -> bool:
-    """Return True if the PIC field matches PIC_FILTER (or no filter is set)."""
-    if not PIC_FILTER:
+def _pic_matches(raw, pic_filter: str = "") -> bool:
+    """Return True if the PIC field matches pic_filter (or no filter is given)."""
+    if not pic_filter:
         return True
     if not raw:
         return False
     users = raw if isinstance(raw, list) else [raw]
     for u in users:
         if isinstance(u, dict):
-            if PIC_FILTER.lower() in (u.get("en_name") or u.get("name") or "").lower():
+            if pic_filter.lower() in (u.get("en_name") or u.get("name") or "").lower():
                 return True
     return False
 
