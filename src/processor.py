@@ -139,6 +139,7 @@ def _fill_dates_from_same_videos(results: list) -> list:
                     posted_date=matched_date,
                     caption=ig["data"]["caption"],
                     view_count=ig["data"]["view_count"],
+                    apply_default_content_type=False,
                 )
                 log.info("  ✓ Date back-filled in Lark (record_id=%s)", ig["record_id"])
             except Exception as exc:
