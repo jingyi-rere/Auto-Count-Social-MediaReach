@@ -34,6 +34,18 @@ IGNORED_PLATFORMS = (
 )
 
 
+def _is_owner_row(raw) -> bool:
+    """
+    True if the PIC field matches PIC_FILTER (the system owner's own name).
+    Used to decide whether the Content Type default ("Content Casual") applies —
+    that default is only auto-filled for the owner's own rows, never for others.
+    If PIC_FILTER isn't set, nobody gets the auto-default.
+    """
+    if not PIC_FILTER:
+        return False
+    return _pic_matches(raw, PIC_FILTER)
+
+
 def _pic_matches(raw, pic_filter: str = "") -> bool:
     """Return True if the PIC field matches pic_filter (or no filter is given)."""
     if not pic_filter:
