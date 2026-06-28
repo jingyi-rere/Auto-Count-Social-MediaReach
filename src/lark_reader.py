@@ -28,9 +28,11 @@ PIC_FILTER = os.getenv(
 IGNORED_PLATFORMS = (
     "xiaohongshu.com",
     "xhslink.com",
+    "rednote.com",
     "facebook.com",
     "fb.watch",
     "threads.net",
+    "threads.com",
 )
 
 
