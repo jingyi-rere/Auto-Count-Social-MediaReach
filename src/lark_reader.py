@@ -262,6 +262,44 @@ def get_filled_rows_for_weeks(week_values: set, pic_filter: str = "") -> list:
     return rows
 
 
+def get_all_rows_for_week(week_value: str, pic_filter: str = "") -> list:
+    """
+    ALL rows (any PIC, regardless of Date/Caption/Views fill status) that belong
+    to the given week and have a URL on a supported platform.
+    Used by /allrun — a views-only sweep across everyone for one week:
+    fills Views if empty, refreshes Views if already filled. Never touches
+    Date/Caption/Content Type.
+    pic_filter: if given, only rows whose PIC matches are returned (default: everyone).
+    Returns list of (record_id, url, existing_ct) tuples.
+    """
+    if not week_value:
+        return []
+    rows = []
+    page_token = None
+    while True:
+        data = _list_records(page_token)
+        for record in data.items or []:
+            fields = record.fields
+            if not _pic_matches(fields.get(FIELD_PIC), pic_filter):
+                continue
+            url = _extract_url(fields.get(FIELD_LINK, ""))
+            if not url:
+                continue
+            if any(p in url.lower() for p in IGNORED_PLATFORMS):
+                continue
+            week_raw = fields.get(FIELD_WEEK, "")
+            week_val = str(week_raw).strip() if week_raw else ""
+            if week_val != week_value:
+                continue
+            existing_ct_raw = fields.get(FIELD_CONTENT_TYPE, "")
+            existing_ct = str(existing_ct_raw).strip() if existing_ct_raw else ""
+            rows.append((record.record_id, url, existing_ct))
+        if not data.has_more:
+            break
+        page_token = data.page_token
+    return rows
+
+
 def get_all_field_names() -> list:
     """
     Returns all field names in the table.
