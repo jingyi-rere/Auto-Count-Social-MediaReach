@@ -199,6 +199,21 @@ def main():
         print(warn("Run 'python setup.py' to enter them."))
         sys.exit(1)
 
+    # ── Optional: switch to a different Lark Base/Table entirely ───────────────
+    print(dim("  Current table:"))
+    print(dim(f"    App Token: {env['LARK_APP_TOKEN']}"))
+    print(dim(f"    Table ID:  {env['LARK_TABLE_ID']}"))
+    print()
+    if ask_yn("  Switching to a DIFFERENT Lark sheet/Base (not just renamed columns)?", default=False):
+        print(dim("  From your new Bitable URL: https://xxx.larksuite.com/base/APP_TOKEN?table=TABLE_ID"))
+        new_token = ask("New App Token (base/XXXXXX)", env["LARK_APP_TOKEN"])
+        new_table = ask("New Table ID   (?table=XXXXXX)", env["LARK_TABLE_ID"])
+        env["LARK_APP_TOKEN"] = new_token
+        env["LARK_TABLE_ID"] = new_table
+        _write_env({"LARK_APP_TOKEN": new_token, "LARK_TABLE_ID": new_table})
+        print(ok("App Token / Table ID updated — now detecting columns in the new table"))
+        print()
+
     print("  Connecting to Lark table...")
     try:
         fields = _fetch_fields(env)
