@@ -206,9 +206,9 @@ def process_all(pic_filter: str = "") -> list:
 
     log.info("Found %d new row(s) to process.", len(rows))
 
-    # Normalize rows to 6-tuples (record_id, url, existing_content_type, week,
-    # has_date, has_caption). Test mocks may return shorter tuples — missing
-    # elements default to "" / False.
+    # Normalize rows to 7-tuples (record_id, url, existing_content_type, week,
+    # has_date, has_caption, is_mine). Test mocks may return shorter tuples —
+    # missing elements default to "" / False.
     rows_n = [
         (
             row[0],
@@ -217,6 +217,7 @@ def process_all(pic_filter: str = "") -> list:
             row[3] if len(row) > 3 else "",
             row[4] if len(row) > 4 else False,
             row[5] if len(row) > 5 else False,
+            row[6] if len(row) > 6 else False,
         )
         for row in rows
     ]
