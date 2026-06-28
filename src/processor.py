@@ -192,9 +192,13 @@ def _build_browser_data(url, main_ss, thumb_ss, dom_date, dom_vc, dom_cap) -> di
     return data
 
 
-def process_all() -> list:
+def process_all(pic_filter: str = "") -> list:
+    """
+    pic_filter: if given, only process rows whose PIC matches.
+    Default "" = no filter, process everyone's rows.
+    """
     log.info("Checking Lark for new rows...")
-    rows = get_new_rows()
+    rows = get_new_rows(pic_filter=pic_filter)
 
     if not rows:
         log.info("No new rows found — nothing to process.")
@@ -202,19 +206,23 @@ def process_all() -> list:
 
     log.info("Found %d new row(s) to process.", len(rows))
 
-    # Normalize rows to 4-tuples (record_id, url, existing_content_type, week).
-    # Test mocks may return 2-tuples — missing elements default to "".
+    # Normalize rows to 6-tuples (record_id, url, existing_content_type, week,
+    # has_date, has_caption). Test mocks may return shorter tuples — missing
+    # elements default to "" / False.
     rows_n = [
-        (row[0], row[1], row[2] if len(row) > 2 else "", row[3] if len(row) > 3 else "")
+        (
+            row[0],
+            row[1],
+            row[2] if len(row) > 2 else "",
+            row[3] if len(row) > 3 else "",
+            row[4] if len(row) > 4 else False,
+            row[5] if len(row) > 5 else False,
+        )
         for row in rows
     ]
 
-    ytdlp_rows = [
-        (rid, url, ct, wk) for rid, url, ct, wk in rows_n if _route(url) == "ytdlp"
-    ]
-    browser_rows = [
-        (rid, url, ct, wk) for rid, url, ct, wk in rows_n if _route(url) != "ytdlp"
-    ]
+    ytdlp_rows = [r for r in rows_n if _route(r[1]) == "ytdlp"]
+    browser_rows = [r for r in rows_n if _route(r[1]) != "ytdlp"]
 
     result_map: dict = {}  # record_id → result entry
 
@@ -227,11 +235,18 @@ def process_all() -> list:
         )
         with ThreadPoolExecutor(max_workers=MAX_PARALLEL_YTDLP) as pool:
             futures = {
-                pool.submit(get_metadata, url): (rid, url, ct, wk)
-                for rid, url, ct, wk in ytdlp_rows
+                pool.submit(get_metadata, url): (
+                    rid,
+                    url,
+                    ct,
+                    wk,
+                    has_date,
+                    has_caption,
+                )
+                for rid, url, ct, wk, has_date, has_caption in ytdlp_rows
             }
             for future in as_completed(futures):
-                rid, url, ct, wk = futures[future]
+                rid, url, ct, wk, has_date, has_caption = futures[future]
                 log.info("  yt-dlp URL=%s", url[:80])
                 try:
                     data = future.result()
@@ -252,6 +267,8 @@ def process_all() -> list:
                         caption=data["caption"],
                         view_count=data["view_count"],
                         content_type=ct,
+                        skip_date=has_date,
+                        skip_caption=has_caption,
                     )
                     log.info("  ✓ Written to Lark (record_id=%s)", rid)
                     result_map[rid] = {
@@ -280,11 +297,11 @@ def process_all() -> list:
         )
         from collections import defaultdict as _defaultdict
 
-        # url → [(rid, existing_ct), ...]  — preserves per-row content type
+        # url → [(rid, existing_ct, has_date, has_caption), ...]
         url_to_rows: dict = _defaultdict(list)
         rid_to_week: dict = {}
-        for rid, url, ct, wk in browser_rows:
-            url_to_rows[url].append((rid, ct))
+        for rid, url, ct, wk, has_date, has_caption in browser_rows:
+            url_to_rows[url].append((rid, ct, has_date, has_caption))
             rid_to_week[rid] = wk
         unique_urls = list(url_to_rows.keys())
 
@@ -292,7 +309,7 @@ def process_all() -> list:
             batch = get_screenshots_batch(unique_urls)
         except Exception as exc:
             log.error("Browser batch launch failed: %s", exc, exc_info=True)
-            for rid, url, _ct, _wk in browser_rows:
+            for rid, url, _ct, _wk, _hd, _hc in browser_rows:
                 result_map[rid] = {
                     "url": url,
                     "record_id": rid,
@@ -303,12 +320,12 @@ def process_all() -> list:
             batch = {}
 
         for url, result in batch.items():
-            row_entries = url_to_rows[url]  # [(rid, ct), ...]
+            row_entries = url_to_rows[url]  # [(rid, ct, has_date, has_caption), ...]
             log.info("  Browser URL=%s (%d row(s))", url[:80], len(row_entries))
 
             if isinstance(result, Exception):
                 log.error("  ✗ FAILED for %s — %s", url[:80], result)
-                for rid, _ct in row_entries:
+                for rid, _ct, _hd, _hc in row_entries:
                     result_map[rid] = {
                         "url": url,
                         "record_id": rid,
@@ -340,7 +357,7 @@ def process_all() -> list:
                     (data.get("caption") or "")[:50],
                 )
 
-                for i, (rid, ct) in enumerate(row_entries):
+                for i, (rid, ct, has_date, has_caption) in enumerate(row_entries):
                     if i == 0:
                         # First row: write real extracted data
                         write_row(
@@ -349,6 +366,8 @@ def process_all() -> list:
                             caption=data.get("caption"),
                             view_count=data.get("view_count"),
                             content_type=ct,
+                            skip_date=has_date,
+                            skip_caption=has_caption,
                         )
                         log.info("  ✓ Written to Lark (record_id=%s)", rid)
                         result_map[rid] = {
@@ -387,7 +406,7 @@ def process_all() -> list:
 
             except Exception as exc:
                 log.error("  ✗ FAILED for %s — %s", url[:80], exc, exc_info=True)
-                for rid, _ct in row_entries:
+                for rid, _ct, _hd, _hc in row_entries:
                     result_map[rid] = {
                         "url": url,
                         "record_id": rid,
