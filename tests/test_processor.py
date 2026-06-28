@@ -103,6 +103,7 @@ class TestProcessAll:
             content_type="",
             skip_date=False,
             skip_caption=False,
+            apply_default_content_type=False,
         )
 
     def test_instagram_uses_both_screenshots(self, monkeypatch):
@@ -158,6 +159,7 @@ class TestProcessAll:
             content_type="",
             skip_date=False,
             skip_caption=False,
+            apply_default_content_type=False,
         )
 
     def test_no_new_rows_returns_empty(self, monkeypatch):
