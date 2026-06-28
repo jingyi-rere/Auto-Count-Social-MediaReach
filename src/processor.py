@@ -243,11 +243,12 @@ def process_all(pic_filter: str = "") -> list:
                     wk,
                     has_date,
                     has_caption,
+                    is_mine,
                 )
-                for rid, url, ct, wk, has_date, has_caption in ytdlp_rows
+                for rid, url, ct, wk, has_date, has_caption, is_mine in ytdlp_rows
             }
             for future in as_completed(futures):
-                rid, url, ct, wk, has_date, has_caption = futures[future]
+                rid, url, ct, wk, has_date, has_caption, is_mine = futures[future]
                 log.info("  yt-dlp URL=%s", url[:80])
                 try:
                     data = future.result()
@@ -270,6 +271,7 @@ def process_all(pic_filter: str = "") -> list:
                         content_type=ct,
                         skip_date=has_date,
                         skip_caption=has_caption,
+                        apply_default_content_type=is_mine,
                     )
                     log.info("  ✓ Written to Lark (record_id=%s)", rid)
                     result_map[rid] = {
