@@ -64,7 +64,8 @@
       "WebFetch(domain:www.skills.sh)",
       "WebFetch(domain:github.com)",
       "Bash(cat \"/Users/jjjyyy/.claude/settings.json\" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo \"not found\" *)",
-      "Bash(pgrep -fl \"watcher.py\" 2>/dev/null; echo \"---\"; ls \"/Users/jjjyyy/Auto-Count Social MediaReach/.venv/bin/python\" 2>&1; echo \"---\"; ls \"/Users/jjjyyy/Auto-Count Social MediaReach/logs/\" 2>&1; echo \"---\"; ls ~/Library/LaunchAgents/ 2>&1)"
+      "Bash(pgrep -fl \"watcher.py\" 2>/dev/null; echo \"---\"; ls \"/Users/jjjyyy/Auto-Count Social MediaReach/.venv/bin/python\" 2>&1; echo \"---\"; ls \"/Users/jjjyyy/Auto-Count Social MediaReach/logs/\" 2>&1; echo \"---\"; ls ~/Library/LaunchAgents/ 2>&1)",
+      "Bash(launchctl list *)"
     ],
     "deny": [
       "Bash(rm -rf *)",
