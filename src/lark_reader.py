@@ -110,10 +110,17 @@ def get_rows_with_urls() -> list:
     return rows
 
 
+REDNOTE_PLATFORMS = ("xiaohongshu.com", "xhslink.com")
+
+
 def get_new_rows() -> list:
     """
     Rows where Link has a URL but any of Date, Reach, or Title (caption) is still empty.
     Skips only when all three are filled.
+
+    RedNote is an exception: views/date can't be reliably extracted, so a RedNote
+    row is considered done once Caption is filled (even "No caption") — it won't
+    be retried forever waiting for views/date that will never arrive.
     """
     rows = []
     page_token = None
@@ -126,13 +133,19 @@ def get_new_rows() -> list:
             url = _extract_url(fields.get(FIELD_LINK, ""))
             if not url:
                 continue
-            # Skip only when all three key columns are already filled
             already_has_date = bool(fields.get(FIELD_DATE))
             already_has_views = bool(fields.get(FIELD_VIEWS))
             caption_raw = fields.get(FIELD_CAPTION, "")
             already_has_caption = bool(str(caption_raw).strip() if caption_raw else "")
-            if already_has_date and already_has_views and already_has_caption:
-                continue
+
+            if any(p in url.lower() for p in REDNOTE_PLATFORMS):
+                # RedNote: caption alone is enough to mark it done
+                if already_has_caption:
+                    continue
+            else:
+                # Everyone else: skip only when all three key columns are filled
+                if already_has_date and already_has_views and already_has_caption:
+                    continue
             # Read existing content type — so processor can decide whether to overwrite
             existing_ct_raw = fields.get(FIELD_CONTENT_TYPE, "")
             existing_ct = str(existing_ct_raw).strip() if existing_ct_raw else ""
