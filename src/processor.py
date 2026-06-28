@@ -362,7 +362,9 @@ def process_all(pic_filter: str = "") -> list:
                     (data.get("caption") or "")[:50],
                 )
 
-                for i, (rid, ct, has_date, has_caption) in enumerate(row_entries):
+                for i, (rid, ct, has_date, has_caption, is_mine) in enumerate(
+                    row_entries
+                ):
                     if i == 0:
                         # First row: write real extracted data
                         write_row(
@@ -373,6 +375,7 @@ def process_all(pic_filter: str = "") -> list:
                             content_type=ct,
                             skip_date=has_date,
                             skip_caption=has_caption,
+                            apply_default_content_type=is_mine,
                         )
                         log.info("  ✓ Written to Lark (record_id=%s)", rid)
                         result_map[rid] = {
@@ -394,6 +397,7 @@ def process_all(pic_filter: str = "") -> list:
                             caption="Duplicate link",
                             view_count=None,
                             content_type=ct,
+                            apply_default_content_type=is_mine,
                         )
                         log.info("  ✓ Written to Lark (record_id=%s)", rid)
                         dup_data = {
@@ -411,7 +415,7 @@ def process_all(pic_filter: str = "") -> list:
 
             except Exception as exc:
                 log.error("  ✗ FAILED for %s — %s", url[:80], exc, exc_info=True)
-                for rid, _ct, _hd, _hc in row_entries:
+                for rid, _ct, _hd, _hc, _im in row_entries:
                     result_map[rid] = {
                         "url": url,
                         "record_id": rid,
