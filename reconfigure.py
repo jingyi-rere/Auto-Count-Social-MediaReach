@@ -117,6 +117,7 @@ FIELD_KEYS = {
     "LARK_FIELD_CONTENT_TYPE": "Content Type column          (e.g. 'Content Casual' — auto-filled if empty)",
     "LARK_FIELD_VIEWS":        "Views / Reach column         (view count — auto-filled)",
     "LARK_FIELD_PIC":          "PIC column                   (person in charge)",
+    "LARK_FIELD_WEEK":         "Week column                  (e.g. 'W11' — used for same-week view refresh)",
 }
 
 FIELD_DEFAULTS = {
@@ -126,6 +127,7 @@ FIELD_DEFAULTS = {
     "LARK_FIELD_CONTENT_TYPE": "Content Type",
     "LARK_FIELD_VIEWS":        "Reach",
     "LARK_FIELD_PIC":          "PIC",
+    "LARK_FIELD_WEEK":         "Week",
 }
 
 
