@@ -121,6 +121,7 @@ def write_row(
     content_type: str = None,
     skip_date: bool = False,
     skip_caption: bool = False,
+    apply_default_content_type: bool = True,
 ) -> None:
     """
     Write all allowed columns for one row in a SINGLE Lark API call.
@@ -135,6 +136,10 @@ def write_row(
     skip_date / skip_caption: set True when the column already has a value
     in Lark (e.g. filled by a human) — the extracted value is discarded
     instead of overwriting what's already there.
+
+    apply_default_content_type: when Content Type is empty, set False to leave
+    it empty instead of auto-filling "Content Casual" — used for rows that
+    aren't the system owner's own (the default only applies to the owner).
     """
     # Build the field dict — only include fields with real values
     fields: dict = {}
