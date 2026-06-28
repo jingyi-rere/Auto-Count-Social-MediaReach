@@ -885,7 +885,7 @@ async def _take_screenshot(url: str):
     async with async_playwright() as p:
         ctx = await p.firefox.launch_persistent_context(
             str(FIREFOX_PROFILE_DIR),
-            headless=False,
+            headless=True,
             viewport={"width": 1280, "height": 900},
         )
         # Give focus straight back to whatever the user had open.
@@ -983,7 +983,7 @@ async def _take_screenshots_batch(urls: list) -> dict:
     async with async_playwright() as p:
         ctx = await p.firefox.launch_persistent_context(
             str(FIREFOX_PROFILE_DIR),
-            headless=False,
+            headless=True,
             viewport={"width": 1280, "height": 900},
         )
         if _prev and _prev.lower() != "firefox":
