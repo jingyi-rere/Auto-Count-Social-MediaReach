@@ -156,6 +156,8 @@ class TestProcessAll:
             caption="Good caption",
             view_count=21600,
             content_type="",
+            skip_date=False,
+            skip_caption=False,
         )
 
     def test_no_new_rows_returns_empty(self, monkeypatch):
