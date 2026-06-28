@@ -38,8 +38,14 @@ VISION_PLATFORMS = (
 # Platforms that reliably return the post date (used for cross-platform date fill)
 DATED_PLATFORMS = ("youtube.com", "youtu.be")
 
-# Platforms skipped during view-count refresh (Vision-only, views always return None)
-REFRESH_SKIP_PLATFORMS = ("xiaohongshu.com", "xhslink.com")
+# Platforms skipped during view-count refresh (Vision-only / login-walled, views always return None)
+REFRESH_SKIP_PLATFORMS = (
+    "xiaohongshu.com",
+    "xhslink.com",
+    "facebook.com",
+    "fb.watch",
+    "threads.net",
+)
 
 
 def _route(url: str) -> str:
