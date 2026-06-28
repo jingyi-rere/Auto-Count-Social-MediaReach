@@ -300,11 +300,11 @@ def process_all(pic_filter: str = "") -> list:
         )
         from collections import defaultdict as _defaultdict
 
-        # url → [(rid, existing_ct, has_date, has_caption), ...]
+        # url → [(rid, existing_ct, has_date, has_caption, is_mine), ...]
         url_to_rows: dict = _defaultdict(list)
         rid_to_week: dict = {}
-        for rid, url, ct, wk, has_date, has_caption in browser_rows:
-            url_to_rows[url].append((rid, ct, has_date, has_caption))
+        for rid, url, ct, wk, has_date, has_caption, is_mine in browser_rows:
+            url_to_rows[url].append((rid, ct, has_date, has_caption, is_mine))
             rid_to_week[rid] = wk
         unique_urls = list(url_to_rows.keys())
 
@@ -312,7 +312,7 @@ def process_all(pic_filter: str = "") -> list:
             batch = get_screenshots_batch(unique_urls)
         except Exception as exc:
             log.error("Browser batch launch failed: %s", exc, exc_info=True)
-            for rid, url, _ct, _wk, _hd, _hc in browser_rows:
+            for rid, url, _ct, _wk, _hd, _hc, _im in browser_rows:
                 result_map[rid] = {
                     "url": url,
                     "record_id": rid,
@@ -323,12 +323,14 @@ def process_all(pic_filter: str = "") -> list:
             batch = {}
 
         for url, result in batch.items():
-            row_entries = url_to_rows[url]  # [(rid, ct, has_date, has_caption), ...]
+            row_entries = url_to_rows[
+                url
+            ]  # [(rid, ct, has_date, has_caption, is_mine), ...]
             log.info("  Browser URL=%s (%d row(s))", url[:80], len(row_entries))
 
             if isinstance(result, Exception):
                 log.error("  ✗ FAILED for %s — %s", url[:80], result)
-                for rid, _ct, _hd, _hc in row_entries:
+                for rid, _ct, _hd, _hc, _im in row_entries:
                     result_map[rid] = {
                         "url": url,
                         "record_id": rid,
