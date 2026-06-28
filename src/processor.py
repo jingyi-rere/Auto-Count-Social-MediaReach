@@ -42,9 +42,11 @@ DATED_PLATFORMS = ("youtube.com", "youtu.be")
 REFRESH_SKIP_PLATFORMS = (
     "xiaohongshu.com",
     "xhslink.com",
+    "rednote.com",
     "facebook.com",
     "fb.watch",
     "threads.net",
+    "threads.com",
 )
 
 
