@@ -119,6 +119,8 @@ def write_row(
     caption: str,
     view_count,
     content_type: str = None,
+    skip_date: bool = False,
+    skip_caption: bool = False,
 ) -> None:
     """
     Write all allowed columns for one row in a SINGLE Lark API call.
@@ -129,24 +131,30 @@ def write_row(
 
     Retries up to 3 times with exponential back-off (2s → 4s → 8s) for
     transient network or Lark server errors.
+
+    skip_date / skip_caption: set True when the column already has a value
+    in Lark (e.g. filled by a human) — the extracted value is discarded
+    instead of overwriting what's already there.
     """
     # Build the field dict — only include fields with real values
     fields: dict = {}
 
-    # Column A — DateTime field (needs Unix ms timestamp)
-    ts = _to_lark_timestamp(posted_date)
-    if ts is not None:
-        fields[FIELD_DATE] = ts
+    # Column A — DateTime field (needs Unix ms timestamp). Skip if already filled.
+    if not skip_date:
+        ts = _to_lark_timestamp(posted_date)
+        if ts is not None:
+            fields[FIELD_DATE] = ts
 
-    # Column D — Caption text
-    fields[FIELD_CAPTION] = caption
+    # Column D — Caption text. Skip if already filled.
+    if not skip_caption:
+        fields[FIELD_CAPTION] = caption
 
     # Column E — Content type: only fill if user hasn't already set it
     if not content_type:
         fields[FIELD_CONTENT_TYPE] = "Content Casual"
     # else: user already filled Column E — don't touch it
 
-    # Column G — View count (number)
+    # Column G — View count (number) — always overwritten with the latest value
     if view_count is not None:
         fields[FIELD_VIEWS] = int(view_count)
 
