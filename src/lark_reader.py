@@ -145,9 +145,13 @@ def get_new_rows(pic_filter: str = "") -> list:
     Rows on IGNORED_PLATFORMS (RedNote, Facebook, Threads) are skipped entirely —
     never read, never written, never re-checked, regardless of what's already filled.
 
-    Returns (record_id, url, existing_content_type, week, has_date, has_caption) tuples.
+    Returns (record_id, url, existing_content_type, week, has_date, has_caption,
+    is_mine) tuples.
     has_date / has_caption tell the writer whether to leave those columns alone
     (already filled by a human) or fill them.
+    is_mine tells the writer whether the Content Type default ("Content Casual")
+    may be auto-applied — that default only applies to the owner's (PIC_FILTER)
+    own rows; everyone else's empty Content Type is left empty.
     """
     rows = []
     page_token = None
@@ -155,7 +159,8 @@ def get_new_rows(pic_filter: str = "") -> list:
         data = _list_records(page_token)
         for record in data.items or []:
             fields = record.fields
-            if not _pic_matches(fields.get(FIELD_PIC), pic_filter):
+            pic_raw = fields.get(FIELD_PIC)
+            if not _pic_matches(pic_raw, pic_filter):
                 continue
             url = _extract_url(fields.get(FIELD_LINK, ""))
             if not url:
@@ -173,6 +178,7 @@ def get_new_rows(pic_filter: str = "") -> list:
             existing_ct = str(existing_ct_raw).strip() if existing_ct_raw else ""
             week_raw = fields.get(FIELD_WEEK, "")
             week_val = str(week_raw).strip() if week_raw else ""
+            is_mine = _is_owner_row(pic_raw)
             rows.append(
                 (
                     record.record_id,
@@ -181,6 +187,7 @@ def get_new_rows(pic_filter: str = "") -> list:
                     week_val,
                     already_has_date,
                     already_has_caption,
+                    is_mine,
                 )
             )
         if not data.has_more:
