@@ -220,10 +220,11 @@ def get_dated_rows_for_platforms(platforms: tuple) -> list:
     return rows
 
 
-def get_filled_rows_for_weeks(week_values: set) -> list:
+def get_filled_rows_for_weeks(week_values: set, pic_filter: str = "") -> list:
     """
     Rows that are already fully filled (date + views + caption) AND belong to
     one of the given week values. Used to refresh view counts after a fill cycle.
+    pic_filter: if given, only rows whose PIC matches are returned.
     Returns list of (record_id, url, existing_ct) tuples.
     """
     if not week_values:
@@ -234,10 +235,12 @@ def get_filled_rows_for_weeks(week_values: set) -> list:
         data = _list_records(page_token)
         for record in data.items or []:
             fields = record.fields
-            if not _pic_matches(fields.get(FIELD_PIC)):
+            if not _pic_matches(fields.get(FIELD_PIC), pic_filter):
                 continue
             url = _extract_url(fields.get(FIELD_LINK, ""))
             if not url:
+                continue
+            if any(p in url.lower() for p in IGNORED_PLATFORMS):
                 continue
             week_raw = fields.get(FIELD_WEEK, "")
             week_val = str(week_raw).strip() if week_raw else ""
