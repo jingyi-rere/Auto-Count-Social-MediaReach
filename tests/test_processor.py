@@ -101,6 +101,8 @@ class TestProcessAll:
             caption="Test video",
             view_count=1000,
             content_type="",
+            skip_date=False,
+            skip_caption=False,
         )
 
     def test_instagram_uses_both_screenshots(self, monkeypatch):
