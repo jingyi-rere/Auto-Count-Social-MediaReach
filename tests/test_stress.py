@@ -128,7 +128,7 @@ class TestManyUrlsAtOnce:
             ("rec5", "https://www.youtube.com/watch?v=yt2"),
             ("rec6", "https://www.instagram.com/reel/ig2/"),
         ]
-        monkeypatch.setattr(processor, "get_new_rows", lambda: mixed_urls)
+        monkeypatch.setattr(processor, "get_new_rows", lambda **_: mixed_urls)
         monkeypatch.setattr(
             processor,
             "get_metadata",
@@ -213,7 +213,9 @@ class TestDuplicateUrls:
         """Plain English: Even 5 duplicates shouldn't cause any crash."""
         same_url = "https://www.youtube.com/watch?v=repeated"
         monkeypatch.setattr(
-            processor, "get_new_rows", lambda **_: [(f"rec{i}", same_url) for i in range(5)]
+            processor,
+            "get_new_rows",
+            lambda **_: [(f"rec{i}", same_url) for i in range(5)],
         )
         monkeypatch.setattr(
             processor,
