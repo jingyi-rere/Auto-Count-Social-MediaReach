@@ -154,8 +154,9 @@ def write_row(
     if not skip_caption:
         fields[FIELD_CAPTION] = caption
 
-    # Column E — Content type: only fill if user hasn't already set it
-    if not content_type:
+    # Column E — Content type: only fill if user hasn't already set it,
+    # and only auto-default for the owner's own rows
+    if not content_type and apply_default_content_type:
         fields[FIELD_CONTENT_TYPE] = "Content Casual"
     # else: user already filled Column E — don't touch it
 
