@@ -55,7 +55,7 @@ class TestManyUrlsAtOnce:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [
+            lambda **_: [
                 (f"rec{i}", f"https://www.youtube.com/watch?v=video{i:03d}")
                 for i in range(20)
             ],
@@ -88,7 +88,7 @@ class TestManyUrlsAtOnce:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [
+            lambda **_: [
                 (f"rec{i}", f"https://www.youtube.com/watch?v=video{i:03d}")
                 for i in range(50)
             ],
@@ -183,7 +183,7 @@ class TestDuplicateUrls:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [
+            lambda **_: [
                 ("rec1", same_url),
                 ("rec2", same_url),  # same URL, different record
             ],
@@ -213,7 +213,7 @@ class TestDuplicateUrls:
         """Plain English: Even 5 duplicates shouldn't cause any crash."""
         same_url = "https://www.youtube.com/watch?v=repeated"
         monkeypatch.setattr(
-            processor, "get_new_rows", lambda: [(f"rec{i}", same_url) for i in range(5)]
+            processor, "get_new_rows", lambda **_: [(f"rec{i}", same_url) for i in range(5)]
         )
         monkeypatch.setattr(
             processor,
@@ -328,7 +328,7 @@ class TestSystemStaysUpAfterFailures:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [
+            lambda **_: [
                 (f"rec{i}", f"https://www.youtube.com/watch?v=fail{i}")
                 for i in range(10)
             ],
@@ -355,7 +355,7 @@ class TestSystemStaysUpAfterFailures:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [
+            lambda **_: [
                 (f"rec{i}", f"https://www.youtube.com/watch?v=video{i}")
                 for i in range(6)
             ],

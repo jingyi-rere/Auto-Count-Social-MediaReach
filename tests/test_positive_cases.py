@@ -528,7 +528,7 @@ class TestPositiveProcessAll:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [("rec1", "https://www.youtube.com/watch?v=test")],
+            lambda **_: [("rec1", "https://www.youtube.com/watch?v=test")],
         )
         monkeypatch.setattr(
             processor,
@@ -557,7 +557,7 @@ class TestPositiveProcessAll:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [("rec1", "https://www.instagram.com/reel/abc/")],
+            lambda **_: [("rec1", "https://www.instagram.com/reel/abc/")],
         )
         fake_split_ss = b"split_view"
         fake_reel_page_ss = b"reel_page"
@@ -594,7 +594,7 @@ class TestPositiveProcessAll:
         assert results[0]["data"]["view_count"] == 21600  # from reel page
 
     def test_no_rows_returns_empty_list(self, monkeypatch):
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [])
+        monkeypatch.setattr(processor, "get_new_rows", lambda **_: [])
         results = processor.process_all()
         assert results == []
 
@@ -602,7 +602,7 @@ class TestPositiveProcessAll:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [
+            lambda **_: [
                 ("rec1", "https://www.youtube.com/watch?v=aaa"),
                 ("rec2", "https://www.youtube.com/watch?v=bbb"),
                 ("rec3", "https://www.youtube.com/watch?v=ccc"),

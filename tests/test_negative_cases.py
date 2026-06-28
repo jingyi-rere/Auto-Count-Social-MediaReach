@@ -396,7 +396,7 @@ class TestNegativeProcessAll:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [("rec1", "https://www.youtube.com/watch?v=broken")],
+            lambda **_: [("rec1", "https://www.youtube.com/watch?v=broken")],
         )
         monkeypatch.setattr(
             processor,
@@ -416,7 +416,7 @@ class TestNegativeProcessAll:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [("rec1", "https://www.youtube.com/watch?v=abc")],
+            lambda **_: [("rec1", "https://www.youtube.com/watch?v=abc")],
         )
         monkeypatch.setattr(
             processor,
@@ -444,7 +444,7 @@ class TestNegativeProcessAll:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [
+            lambda **_: [
                 ("rec1", "https://www.youtube.com/watch?v=broken"),
                 ("rec2", "https://www.youtube.com/watch?v=good"),
             ],
@@ -473,7 +473,7 @@ class TestNegativeProcessAll:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [("rec1", "https://www.instagram.com/reel/abc/")],
+            lambda **_: [("rec1", "https://www.instagram.com/reel/abc/")],
         )
         monkeypatch.setattr(
             processor,
@@ -491,7 +491,7 @@ class TestNegativeProcessAll:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [
+            lambda **_: [
                 ("rec1", "https://www.youtube.com/watch?v=a"),
                 ("rec2", "https://www.youtube.com/watch?v=b"),
                 ("rec3", "https://www.youtube.com/watch?v=c"),
@@ -510,7 +510,7 @@ class TestNegativeProcessAll:
         assert all(r["status"] == "error" for r in results)
 
     def test_no_rows_never_calls_metadata(self, monkeypatch):
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [])
+        monkeypatch.setattr(processor, "get_new_rows", lambda **_: [])
         mock_meta = MagicMock()
         monkeypatch.setattr(processor, "get_metadata", mock_meta)
 

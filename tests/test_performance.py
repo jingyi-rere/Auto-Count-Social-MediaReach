@@ -132,7 +132,7 @@ class TestWeeklyWorkload:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [
+            lambda **_: [
                 (f"rec{i}", f"https://www.youtube.com/watch?v=video{i}")
                 for i in range(5)
             ],
@@ -172,7 +172,7 @@ class TestWeeklyWorkload:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [
+            lambda **_: [
                 (f"rec{i}", f"https://www.youtube.com/watch?v=video{i}")
                 for i in range(15)
             ],
@@ -210,7 +210,7 @@ class TestWeeklyWorkload:
         """
         call_count = {"n": 0}
 
-        def mock_get_rows():
+        def mock_get_rows(**_):
             call_count["n"] += 1
             return []
 

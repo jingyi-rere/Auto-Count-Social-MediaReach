@@ -210,7 +210,7 @@ class TestProcessorOutputIsInformative:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [("rec1", "https://www.youtube.com/watch?v=abc")],
+            lambda **_: [("rec1", "https://www.youtube.com/watch?v=abc")],
         )
         monkeypatch.setattr(
             processor,
@@ -244,7 +244,7 @@ class TestProcessorOutputIsInformative:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [("rec1", "https://www.youtube.com/watch?v=abc")],
+            lambda **_: [("rec1", "https://www.youtube.com/watch?v=abc")],
         )
         monkeypatch.setattr(
             processor,
@@ -277,7 +277,7 @@ class TestProcessorOutputIsInformative:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [("rec1", "https://www.youtube.com/watch?v=broken")],
+            lambda **_: [("rec1", "https://www.youtube.com/watch?v=broken")],
         )
         monkeypatch.setattr(
             processor,
@@ -300,7 +300,7 @@ class TestProcessorOutputIsInformative:
         processed, so you know which video each result belongs to.
         """
         test_url = "https://www.youtube.com/watch?v=abc123"
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [("rec1", test_url)])
+        monkeypatch.setattr(processor, "get_new_rows", lambda **_: [("rec1", test_url)])
         monkeypatch.setattr(
             processor, "get_metadata", MagicMock(side_effect=RuntimeError("failed"))
         )

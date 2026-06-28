@@ -75,7 +75,7 @@ class TestProcessAll:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [("rec_yt1", "https://www.youtube.com/watch?v=test123")],
+            lambda **_: [("rec_yt1", "https://www.youtube.com/watch?v=test123")],
         )
         mock_metadata = MagicMock(
             return_value={
@@ -110,7 +110,7 @@ class TestProcessAll:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [("rec_ig1", "https://www.instagram.com/reel/DUiVAXaD2Y1/")],
+            lambda **_: [("rec_ig1", "https://www.instagram.com/reel/DUiVAXaD2Y1/")],
         )
 
         fake_reel_ss = b"reel_bytes"  # main_ss  → split-view screenshot
@@ -159,7 +159,7 @@ class TestProcessAll:
     def test_no_new_rows_returns_empty(self, monkeypatch):
         from src import processor
 
-        monkeypatch.setattr(processor, "get_new_rows", lambda: [])
+        monkeypatch.setattr(processor, "get_new_rows", lambda **_: [])
         results = processor.process_all()
         assert results == []
 
@@ -170,7 +170,7 @@ class TestProcessAll:
         monkeypatch.setattr(
             processor,
             "get_new_rows",
-            lambda: [
+            lambda **_: [
                 ("rec1", "https://www.youtube.com/watch?v=bad"),
                 ("rec2", "https://www.youtube.com/watch?v=good"),
             ],
